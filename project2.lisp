@@ -125,80 +125,7 @@ prints that fitness and individual in a pleasing manner."
 	    best-fit best-ind)
     fitnesses))
 
-(defun evolve (generations pop-size
-	       &key setup creator selector modifier evaluator printer)
-  "Evolves for some number of GENERATIONS, creating a population of size
-POP-SIZE, using various functions"
-  ;; The functions passed in are as follows:
-  ;;(SETUP)                     called at the beginning of evolution, to set up
-  ;;                            global variables as necessary
-  ;;(CREATOR)                   creates a random individual
-  ;;(SELECTOR num pop fitneses) given a population and a list of corresponding fitnesses,
-  ;;                            selects and returns NUM individuals as a list.
-  ;;                            An individual may appear more than once in the list.
-  ;;(MODIFIER ind1 ind2)        modifies individuals ind1 and ind2 by crossing them
-  ;;                            over and mutating them.  Returns the two children
-  ;;                            as a list: (child1 child2).  Nondestructive to
-  ;;                            ind1 and ind2.
-  ;;(PRINTER pop fitnesses)     prints the best individual in the population, plus
-  ;;                            its fitness, and any other interesting statistics
-  ;;                            you think interesting for that generation.
-  ;;(EVALUATOR individual)      evaluates an individual, and returns its fitness.
-  ;;Pop will be guaranteed to be a multiple of 2 in size.
-  ;;
-  ;; HIGHER FITNESSES ARE BETTER
 
-  ;; your function should call PRINTER each generation, and also print out or the
-  ;; best individual discovered over the whole run at the end, plus its fitness
-  ;; and any other statistics you think might be nifty.
-
-(funcall setup :record nil)
-  (let* ((population (generate-list pop-size creator t))
-	 (fitnesses (mapcar evaluator population))
-	  chosen offspring bestIndex (maxFitness 0) (deltaFitness 0) (i 0)) ;<for selection 1>
-
-    (dotimes (gen generations)
-
-      ; Calculate change in best fitness
-      (setf deltaFitness (abs (- maxFitness (setf maxFitness (apply #'max 0 fitnesses)))))      
-      
-      ;;; modify mutation rate
-      (if *dynamic* (setf *mutation-probability* (if (> 1 *mutation-probability*)
-				       (+ *mutation-probability* (* *alpha* (if (< deltaFitness 1) (- 1 deltaFitness) 0)))
-				       1)))
-      
-      ; get some statistics // c-5 = list of quantity of values >5 per individual                 
-      (let* ((c-5 (mapcar #'list-length (mapcar (lambda (ind) (remove-if (lambda (val) (> 5 val)) ind)) population))))	     
-
-      ; rank individuals            
-        (if *debug*
-            (progn (format t "~%Generation ~D: ~%Delta fitness = ~F~%Mutation Rate = ~F~%Count of 5+:~%0=~D  1=~D  2=~D  3=~D  4=~D  5=~D  6=~D  7=~D~%"
-                           gen deltaFitness *mutation-probability* (count 0 c-5) (count 1 c-5) (count 2 c-5) (count 3 c-5) (count 4 c-5) (count 5 c-5)
-			   (count 6 c-5) (count 7 c-5))
-                   (funcall printer population fitnesses))))
-      
-      ; #| SELECTION 1 
-      ; choose half the population TWEAK ME!!!!!!!!!!
-      (setf chosen (funcall selector (/ pop-size 2) population fitnesses))
-
-      ; build up an offspring set to be the new population
-      (while (< (list-length offspring) pop-size)
-	(let ((parent1 (elt chosen (mod (incf i) (list-length chosen))))
-	      (parent2 (elt chosen (random (list-length chosen)))))
-	  (setf offspring (append offspring (funcall modifier parent1 parent2)))))
-
-      ; evolve
-      (setf population offspring)
-      (setf fitnesses (mapcar evaluator population))
-      (setf offspring nil))
-    
-    ; Final Statistics
-    (setf bestIndex (position (apply #'max (first fitnesses) fitnesses) fitnesses))
-    (format t "~%Best Fitness: ~F ~%Best Individual of Evolution: ~A"
-	   (elt fitnesses bestIndex) (elt population bestIndex));  (setf *record* (elt fitnesses bestIndex)) (elt population bestIndex))
-    
-    ; return statement
-    population))
 
 ;;;;;; BOOLEAN VECTOR GENETIC ALGORTITHM
 
@@ -524,19 +451,37 @@ a tree of that size"
   "Returns the number of nodes in tree, including the root"
   (apply #'+ (length (remove-if #'listp tree)) (mapcar #'num-nodes (remove-if-not #'listp tree))))
 
-(defun nth-subtree-parent (tree n)
-  "Given a tree, finds the nth node by depth-first search though
+(defun make-counter ()
+  "returns a function that returns false until it has been called countdown times"
+  (let ((steps (gensym)))
+    (setf steps 0)
+    (lambda (end)
+      (equalp (incf steps) end))))
+
+(defun nth-subtree (tree n)
+    "Given a tree, finds the nth node by depth-first search though
 the tree, not including the root node of the tree (0-indexed). If the
 nth node is NODE, let the parent node of NODE is PARENT,
 and NODE is the ith child of PARENT (starting with 0),
 then return a list of the form (PARENT i).  For example, in
 the tree (a (b c d) (f (g (h) i) j)), let's say that (g (h) i)
 is the chosen node.  Then we return ((f (g (h) i) j) 0).
-
+p
 If n is bigger than the number of nodes in the tree
  (not including the root), then we return n - nodes_in_tree
  (except for root)."
+  (let ((counter (make-counter)))
+    (labels ((recurse (root)
+	       (if (funcall counter n) (return-from depth-first root))
+	       (mapcar (lambda (subtree)
+			 (if (listp subtree)
+			     (recurse subtree)
+			     (if (funcall counter n)
+				 (return-from depth-first subtree))))
+		       (rest root))))
+	     (recurse tree))))
 
+(defun nth-subtree-parent (tree n)
   ;;; this is best described with an example:
   ;    (dotimes (x 12)
   ;           (print (nth-subtree-parent
@@ -559,32 +504,33 @@ If n is bigger than the number of nodes in the tree
 
     ;;; IMPLEMENT ME
 
-  )
-(defparameter *mutation-size-limit* 10)
+ )
 
+(defparameter *mutation-size-limit* 10)
 (defun subtree (ind n)
   "Returns the n'th subtree using nth-subtree-parent"
-  (apply #'elt (nth-subtree-parent ind n)))
+					;(apply #'elt (nth-subtree-parent ind n)))
+  (
 
 (defun random-subtree (ind)
   "Returns a random strict subtree (cannot be root) of the given individual" 
   (subtree int (random (num-nodes ind))))
 
 (defun max-depth (root)
-  "given a tree, calculates the maximum depth of the tree"
-  (apply #'max (mapcar (lambda (node) (if (listp node) (1+ (max-depth node)) 0))
+  "given a tree, calculates the maximum depth of the tree where (max-depth (a))=0"
+  (apply #'max (mapcar (lambda (node) (if (listp node) (1+ (max-depth node)) 1))
 		       (rest root))))
 
-# (defun depth (root targetNode)
-#   "Given a tree and a node within that tree, calculates the depth of the node within the tree,
+(defun depth (root targetNode)
+  "Given a tree and a node within that tree, calculates the depth of the node within the tree,
 # where (depth root root) -> 0" 
-#   (labels ((recurse (subtree level)                                         
-# 	     (mapcar (lambda (node)                                          
-# 		       (if (equalp node targetNode) (return-from depth level)
-# 			   (if (listp node) (recurse node (1+ level)))))
-# 		     (rest subtree))))
-#     (recurse root 0)))
-# 
+  (labels ((recurse (subtree level)                                         
+ 	     (mapcar (lambda (node)                                          
+		       (if (equalp node targetNode) (return-from depth level)
+ 			   (if (listp node) (recurse node (1+ level)))))
+ 		     (rest subtree))))
+    (recurse root 0)))
+ 
 (defun subtree-mutation (ind &key (restrict-size *restrict-size*) (max-size *size-limit*) (mutate-size-limit *mutation-size-limit*))
   "Randomly selects a subtree of ind, determines its maximum depth,
 and replaces it with a new tree, perhaps restricting its size"
