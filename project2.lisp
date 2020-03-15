@@ -1,4 +1,3 @@
-
 ;;; This is the "extended" version of Project 1
 
 #|
@@ -26,7 +25,7 @@ I have provided the approximate function templates I myself used to complete
 the task; with permission you can use these or go your own way, but otherwise
 please try not to deviate much from this template.
 
-The project is due approximately two and a half weeks from now or so.  Please 
+The project is due approximately two and a half weeks from now or so.  Please
 try to get it in on time.
 
 WHAT YOU MUST PROVIDE:
@@ -48,13 +47,99 @@ you as well, but it's not necessary.  I do not accept reports in Word.  Only sen
 me a PDF.
 
 Make sure your code is compiled.  In most cases (such as SBCL), your code will be
-automatically compiled.  But there exist systems (like LispWorks ("lisp" on 
-mason.gmu.edu)) where the default is to interpret the code, and so you must 
+automatically compiled.  But there exist systems (like LispWorks ("lisp" on
+mason.gmu.edu)) where the default is to interpret the code, and so you must
 compile your file first and then load that.
 
 Information on compiling code and doing compiler optimizations can be found in the
 "Speed" chapter of Graham.
 |#
+
+
+(defparameter *boolean-crossover-probability* 0.2)
+(defparameter *boolean-mutation-probability* 0.01)
+(defparameter *boolean-vector-length* 100)
+(defparameter *boolean-mutation-variance* 0.01)
+
+(defparameter *boolean-problem* :max-ones)
+
+(defparameter *float-vector-length* 100)
+(defparameter *float-problem :rastrigin)
+(defparameter *float-min* -5.12)  ;; these will change based on the problem
+(defparameter *float-max* 5.12)   ;; likewise
+
+
+(defparameter *float-crossover-probability* 0.2)
+(defparameter *float-mutation-probability* 0.1)   ;; I just made up this number
+(defparameter *float-mutation-variance* 0.01)     ;; I just made up this number
+
+(defparameter *size-limit* 20)
+
+(defparameter *mutation-size-limit* 10)
+
+(defparameter *num-vals* 20)
+(defparameter *vals* nil) ;; gets set in gp-setup
+
+(defparameter *x* nil) ;; to be set in gp-evaluator
+
+
+(defparameter *map-strs* '(
+".###............................"
+"...#............................"
+"...#.....................###...."
+"...#....................#....#.."
+"...#....................#....#.."
+"...####.#####........##........."
+"............#................#.."
+"............#.......#..........."
+"............#.......#..........."
+"............#.......#........#.."
+"....................#..........."
+"............#..................."
+"............#................#.."
+"............#.......#..........."
+"............#.......#.....###..."
+".................#.....#........"
+"................................"
+"............#..................."
+"............#...#.......#......."
+"............#...#..........#...."
+"............#...#..............."
+"............#...#..............."
+"............#.............#....."
+"............#..........#........"
+"...##..#####....#..............."
+".#..............#..............."
+".#..............#..............."
+".#......#######................."
+".#.....#........................"
+".......#........................"
+"..####.........................."
+"................................"))
+
+(defconstant *n* 0)                                                                                 
+(defconstant *e* 1)                                                                                 
+(defconstant *s* 2)                                                                                 
+(defconstant *w* 3) 
+
+
+(defparameter *map-height* 32)
+(defparameter *map-width* 32)
+
+
+(defparameter *current-move* 0 "The move # that the ant is at right now")
+(defparameter *num-moves* 600 "How many moves the ant may make")
+(defparameter *current-x-pos* 0 "The current X position of the ant")
+(defparameter *current-y-pos* 0 "The current Y position of the ant")
+(defparameter *current-ant-dir* *e* "The current direction the ant is facing")
+(defparameter *eaten-pellets* 0 "How many pellets the ant has eaten so far")
+(defparameter *map* (make-map *map-strs*) "The ant's map")
+(defparameter *map-strs-copy* (copy-seq *map-strs*))
+
+
+(defparameter *nonterminal-set* nil)
+(defparameter *terminal-set* nil)
+
 
 
 ;;; Useful Functions and Macros
@@ -93,7 +178,7 @@ new slot is created).  EQUALP is the test used for duplicates."
 		     (member candidate bag :test #'equalp))
 	  (push candidate bag))))))
 
-;;;;;; TOP-LEVEL EVOLUTIONARY COMPUTATION FUNCTIONS 
+;;;;;; TOP-LEVEL EVOLUTIONARY COMPUTATION FUNCTIONS
 
 ;;; TOURNAMENT SELECTION
 
@@ -126,12 +211,93 @@ prints that fitness and individual in a pleasing manner."
     fitnesses))
 
 
+(defparameter *tournament-size* 2)
+(defparameter *debug* nil)
+(defparameter *alpha* 0.1)
+(defparameter *dynamic* nil)
+(defparameter *record* nil)
+
+
+(defun evolve (generations pop-size
+	       &key setup creator selector modifier evaluator printer (mutate-prob *boolean-mutation-probability*))
+  "Evolves for some number of GENERATIONS, creating a population of size
+POP-SIZE, using various functions"
+  ;; The functions passed in are as follows:
+  ;;(SETUP)                     called at the beginning of evolution, to set up
+  ;;                            global variables as necessary
+  ;;(CREATOR)                   creates a random individual
+  ;;(SELECTOR num pop fitneses) given a population and a list of corresponding fitnesses,
+  ;;                            selects and returns NUM individuals as a list.
+  ;;                            An individual may appear more than once in the list.
+  ;;(MODIFIER ind1 ind2)        modifies individuals ind1 and ind2 by crossing them
+  ;;                            over and mutating them.  Returns the two children
+  ;;                            as a list: (child1 child2).  Nondestructive to
+  ;;                            ind1 and ind2.
+  ;;(PRINTER pop fitnesses)     prints the best individual in the population, plus
+  ;;                            its fitness, and any other interesting statistics
+  ;;                            you think interesting for that generation.
+  ;;(EVALUATOR individual)      evaluates an individual, and returns its fitness.
+  ;;Pop will be guaranteed to be a multiple of 2 in size.
+  ;;
+  ;; HIGHER FITNESSES ARE BETTER
+
+  ;; your function should call PRINTER each generation, and also print out or the
+  ;; best individual discovered over the whole run at the end, plus its fitness
+  ;; and any other statistics you think might be nifty.
+
+(funcall setup :record nil)
+  (let* ((population (generate-list pop-size creator t))
+	 (fitnesses (mapcar evaluator population))
+	  chosen offspring bestIndex (maxFitness 0) (deltaFitness 0) (i 0)) ;<for selection 1>
+
+    (dotimes (gen generations)
+
+      ; Calculate change in best fitness
+      (setf deltaFitness (abs (- maxFitness (setf maxFitness (apply #'max 0 fitnesses)))))
+
+      ;;; modify mutation rate
+      (if *dynamic* (setf mutate-prob (if (> 1 mutate-prob)
+				       (+ mutate-prob (* *alpha* (if (< deltaFitness 1) (- 1 deltaFitness) 0)))
+				       1)))
+
+      ; get some statistics // c-5 = list of quantity of values >5 per individual
+      (let* ((c-5 (mapcar #'list-length (mapcar (lambda (ind) (remove-if (lambda (val) (> 5 val)) ind)) population))))
+
+      ; rank individuals
+        (if *debug*
+            (progn (format t "~%Generation ~D: ~%Delta fitness = ~F~%Mutation Rate = ~F~%Count of 5+:~%0=~D  1=~D  2=~D  3=~D  4=~D  5=~D  6=~D  7=~D~%"
+                           gen deltaFitness mutate-prob (count 0 c-5) (count 1 c-5) (count 2 c-5) (count 3 c-5) (count 4 c-5) (count 5 c-5)
+			   (count 6 c-5) (count 7 c-5))
+                   (funcall printer population fitnesses))))
+
+      ; #| SELECTION 1
+      ; choose half the population TWEAK ME!!!!!!!!!!
+      (setf chosen (funcall selector (/ pop-size 2) population fitnesses))
+
+      ; build up an offspring set to be the new population
+      (while (< (list-length offspring) pop-size)
+	(let ((parent1 (elt chosen (mod (incf i) (list-length chosen))))
+	      (parent2 (elt chosen (random (list-length chosen)))))
+	  (setf offspring (append offspring (funcall modifier parent1 parent2)))))
+
+      ; evolve
+      (setf population offspring)
+      (setf fitnesses (mapcar evaluator population))
+      (setf offspring nil))
+
+    ; Final Statistics
+    (setf bestIndex (position (apply #'max (first fitnesses) fitnesses) fitnesses))
+    (format t "~%Best Fitness: ~F ~%Best Individual of Evolution: ~A"
+	   (elt fitnesses bestIndex) (elt population bestIndex));  (setf *record* (elt fitnesses bestIndex)) (elt population bestIndex))
+
+    ; return statement
+    population))
 
 ;;;;;; BOOLEAN VECTOR GENETIC ALGORTITHM
 
 ;;; Creator, Modifier, Evaluator, and Setup functions for the
 ;;; boolean vectors Problem.  Assume that you are evolving a bit vector
-;;; *vector-length* long.  
+;;; *vector-length* long.
 
 ;;; The default test function is Max-Ones.
 ;;;; Max-ones is defined in section 11.2.1 of "Essentials of Metaheuristics"
@@ -144,14 +310,9 @@ prints that fitness and individual in a pleasing manner."
 ;;; :leading-ones
 ;;; :leading-ones-blocks
 
-(defparameter *boolean-crossover-probability* 0.2)
-(defparameter *boolean-mutation-probability* 0.01)
-(defparameter *boolean-vector-length* 100)
-(defparameter *boolean-problem* :max-ones)
-
 (defun uniform-crossover (ind1 ind2 &key (length *boolean-vector-length*) (crossover-probability *boolean-crossover-probability*))
   "Performs uniform crossover on the two individuals, modifying them in place.
-*crossover-probability* is the probability that any given allele will crossover.  
+*crossover-probability* is the probability that any given allele will crossover.
 The individuals are guaranteed to be the same length.  Returns NIL."
   (dotimes (i (- length 1))
     (if (random? crossover-probability)
@@ -191,7 +352,7 @@ and the floating-point ranges involved, etc.  I dunno."
   (if debug (setf *debug* debug))
   (if crossProb (setf *boolean-crossover-probability* crossProb))
   (if mutateProb (setf *boolean-mutation-probability* mutateProb))
-  (if mutateVar (setf *mutation-variance* mutateVar))
+  (if mutateVar (setf *boolean-mutation-variance* mutateVar))
   (if tourny (setf *tournament-size* tourny))
   (if min (setf *float-min* min))
   (if max (setf *float-max* max))
@@ -214,7 +375,7 @@ and the floating-point ranges involved, etc.  I dunno."
 
 ;;; Creator, Modifier, Evaluator, and Setup functions for the
 ;;; GA Max-ONES Problem.  Assume that you are evolving a vector
-;;; of floating-point numbers *float-vector-length* long.  
+;;; of floating-point numbers *float-vector-length* long.
 
 
 ;;; The default test function is Rastrigin.
@@ -237,6 +398,16 @@ and the floating-point ranges involved, etc.  I dunno."
 ;;; as [-5.12, 5.12].  Other problems have other traditional min/max
 ;;; values, consult Section 11.2.2.
 
+(defun gaussian-random (mean variance)
+  "Generates a random number under a gaussian distribution with the
+given mean and variance (using the Box-Muller-Marsaglia method)"
+  (let (x y (w 0))
+    (while (not (and (< 0 w) (< w 1)))
+           (setf x (- (random 2.0) 1.0))
+           (setf y (- (random 2.0) 1.0))
+           (setf w (+ (* x x) (* y y))))
+    (+ mean (* x (sqrt variance) (sqrt (* -2 (/ (log w) w)))))))
+
 (defun gaussian-convolution (ind)
   "Performs gaussian convolution mutation on the individual, modifying it in place.
  Returns NIL."
@@ -245,31 +416,20 @@ and the floating-point ranges involved, etc.  I dunno."
 	   (n *float-min*)
 	   (out-of-bounds t))
       ;(format t "Individual ~D: ~A" i e)
-      (if (random? *mutation-probability*)
+      (if (random? *float-mutation-probability*)
 	  (progn
 	    (while out-of-bounds
 	      ;(format t "~%~%E=~F  N=~F~%~F < ~F < ~F~%~%" (elt ind i) n *float-min* (+ (elt ind i) n) *float-max*))
-	      (setf n (gaussian-random mean *mutation-variance*))
+	      (setf n (gaussian-random mean *float-mutation-variance*))
 	      (if (and (> (+ (elt ind i) n) *float-min*) (< (+ (elt ind i) n) *float-max*))
 		  (setf out-of-bounds nil)))
 	    (setf (elt ind i) (+ (elt ind i) n)))))))
-
-
-(defparameter *float-vector-length* 100)
-
-(defparameter *float-problem :rastrigin)
-(defparameter *float-min* -5.12)  ;; these will change based on the problem
-(defparameter *float-max* 5.12)   ;; likewise
 
 (defun float-vector-creator ()
   "Creates a floating-point-vector *float-vector-length* in size, filled with
 random numbers in the range appropriate to the given problem"
   (let ((domain-length (- *float-max* *float-min*)))
     (generate-list *float-vector-length* (lambda () (+ (random domain-length) *float-min*)))))
-
-(defparameter *float-crossover-probability* 0.2)
-(defparameter *float-mutation-probability* 0.1)   ;; I just made up this number
-(defparameter *float-mutation-variance* 0.01)     ;; I just made up this number
 
 (defun float-vector-modifier (ind1 ind2)
   "Copies and modifies ind1 and ind2 by crossing them over with a uniform crossover,
@@ -293,9 +453,9 @@ its fitness."
 
 (defun float-vector-sum-setup (&key debug crossProb mutateProb mutateVar tourny min max length alpha dynamic record)
   (if debug (setf *debug* debug))
-  (if crossProb (setf *crossover-probability* crossProb))
-  (if mutateProb (setf *mutation-probability* mutateProb))
-  (if mutateVar (setf *mutation-variance* mutateVar))
+  (if crossProb (setf *float-crossover-probability* crossProb))
+  (if mutateProb (setf *float-mutation-probability* mutateProb))
+  (if mutateVar (setf *float-mutation-variance* mutateVar))
   (if tourny (setf *tournament-size* tourny))
   (if min (setf *float-min* min))
   (if max (setf *float-max* max))
@@ -304,15 +464,15 @@ its fitness."
   (if dynamic (setf *dynamic* dynamic))
   (if record (setf *record* record)))
 
-(evolve 50 100
- 	:setup #'float-vector-sum-setup
-	:creator #'float-vector-creator
-	:selector #'tournament-selector
-	:modifier #'float-vector-modifier
-        :evaluator #'float-vector-sum-evaluator
-	:printer #'simple-printer)
 
-;;;; GP TREE CREATION CODE
+;(evolve 50 100
+; 	:setup #'float-vector-sum-setup
+;	:creator #'float-vector-creator
+;	:selector #'tournament-selector
+;	:modifier #'float-vector-modifier
+;       :Evaluator
+
+;;;; Gp
 
 ;;; GP's tree individuals are considerably more complex to modify than
 ;;; simple vectors.  Get the GA system working right before tackling
@@ -420,12 +580,12 @@ plus the number of unfilled slots in the horizon, is >= size.
 Then fills the remaining slots in the horizon with terminals.
 Terminals like X should be added to the tree
 in function form (X) rather than just X."
-  
+
   (if (equalp size 1) (random-terminal)
       (let ((q (make-queue))
 	    (root (random-non-terminal))
 	    (count 1)
-	    tmp)      
+	    tmp)
 	(enqueue-args root q)
 	(while (print (>= (print (+ count (length q))) size)) '()
 	  (incf count)
@@ -439,7 +599,6 @@ in function form (X) rather than just X."
 	    (break)
 	    (setf slot (random-terminal)))))))
 
-(defparameter *size-limit* 20)
 (defun gp-creator (&optional (size-limit *size-limit*))
    "Picks a random number within size-limit, then uses ptc2 to create
 a tree of that size"
@@ -488,23 +647,23 @@ If n is bigger than the number of nodes in the tree
   ;                      '(a (b c) (d e (f (g h i j)) k))
   ;                        x)))
   ;;; result:
-  ;((A (B C) (D E (F (G H I J)) K)) 0) 
-  ;((B C) 0) 
-  ;((A (B C) (D E (F (G H I J)) K)) 1) 
-  ;((D E (F (G H I J)) K) 0) 
-  ;((D E (F (G H I J)) K) 1) 
-  ;((F (G H I J)) 0) 
-  ;((G H I J) 0) 
+  ;((A (B C) (D E (F (G H I J)) K)) 0)
+  ;((B C) 0)
+  ;((A (B C) (D E (F (G H I J)) K)) 1)
+  ;((D E (F (G H I J)) K) 0)
+  ;((D E (F (G H I J)) K) 1)
+  ;((F (G H I J)) 0)
+  ;((G H I J) 0)
   ;((G H I J) 1)
-  ;((G H I J) 2) 
-  ;((D E (F (G H I J)) K) 2) 
-  ;0 
-  ;1 
+  ;((G H I J) 2)
+  ;((D E (F (G H I J)) K) 2)
+  ;0
+  ;1
   ;NIL
 
     ;;; IMPLEMENT ME
+  )
 
- )
 
 (defparameter *mutation-size-limit* 10)
 (defun subtree (ind n)
@@ -513,13 +672,23 @@ If n is bigger than the number of nodes in the tree
   (
 
 (defun random-subtree (ind)
-  "Returns a random strict subtree (cannot be root) of the given individual" 
-  (subtree int (random (num-nodes ind))))
+  "Returns a random strict subtree (cannot be root) of the given individual"
+  (subtree ind (random (num-nodes ind))))
 
 (defun max-depth (root)
   "given a tree, calculates the maximum depth of the tree where (max-depth (a))=0"
   (apply #'max (mapcar (lambda (node) (if (listp node) (1+ (max-depth node)) 1))
 		       (rest root))))
+gg
+;(defun depth (root targetNode)
+;   "Given a tree and a node within that tree, calculates the depth of the node within the tree,
+; where (depth root root) -> 0"
+;   (labels ((recurse (subtree level)
+; 	     (mapcar (lambda (node)
+; 		       (if (equalp node targetNode) (return-from depth level)
+; 			   (if (listp node) (recurse node (1+ level)))))
+; 		     (rest subtree))))
+;     (recurse root 0)))
 
 (defun depth (root targetNode)
   "Given a tree and a node within that tree, calculates the depth of the node within the tree,
@@ -531,16 +700,17 @@ If n is bigger than the number of nodes in the tree
  		     (rest subtree))))
     (recurse root 0)))
  
+
 (defun subtree-mutation (ind &key (restrict-size *restrict-size*) (max-size *size-limit*) (mutate-size-limit *mutation-size-limit*))
   "Randomly selects a subtree of ind, determines its maximum depth,
 and replaces it with a new tree, perhaps restricting its size"
   (if (not restrict-size)
       (setf (random-subtree ind) (ptc2 mutate-size-limit))
       (let* ((full-height (max-depth ind))
-	     (n (random (num-nodes ind)))	 
+	     (n (random (num-nodes ind)))
 	     (new-subtree-depth (- max-size (depth ind (subtree ind n)))))
 	     (setf (subtree ind n) (ptc2 new-subtree-depth)))))
-	       
+
 (defun gp-modifier (ind1 ind2)
   "Flips a coin.  If it's heads, then ind1 and ind2 are
 crossed over using subtree crossover.  If it's tails, then
@@ -583,9 +753,6 @@ the two modified versions as a list."
 ;;; GP SYMBOLIC REGRESSION SETUP
 ;;; (I provide this for you)
 
-(defparameter *num-vals* 20)
-(defparameter *vals* nil) ;; gets set in gp-setup
-
 (defun gp-symbolic-regression-setup ()
   "Defines the function sets, and sets up vals"
 
@@ -599,7 +766,6 @@ the two modified versions as a list."
 (defun poly-to-learn (x) (+ (* x x x x) (* x x x) (* x x) x))
 
 ;; define the function set
-(defparameter *x* nil) ;; to be set in gp-evaluator
 (defun x () *x*)
 (defun % (x y) (if (= y 0) 0 (/ x y)))  ;; "protected division"
 ;;; the rest of the functions are standard Lisp functions
@@ -684,44 +850,6 @@ returning most-positive-fixnum as the output of that expression."
 ;;; Note that in my thesis it says 400 moves and not 600.  We're going with
 ;;; 600 here.  It's easier.
 
-;;; our ant's food trail map
-(defparameter *map-strs* '(
-".###............................"
-"...#............................"
-"...#.....................###...."
-"...#....................#....#.."
-"...#....................#....#.."
-"...####.#####........##........."
-"............#................#.."
-"............#.......#..........."
-"............#.......#..........."
-"............#.......#........#.."
-"....................#..........."
-"............#..................."
-"............#................#.."
-"............#.......#..........."
-"............#.......#.....###..."
-".................#.....#........"
-"................................"
-"............#..................."
-"............#...#.......#......."
-"............#...#..........#...."
-"............#...#..............."
-"............#...#..............."
-"............#.............#....."
-"............#..........#........"
-"...##..#####....#..............."
-".#..............#..............."
-".#..............#..............."
-".#......#######................."
-".#.....#........................"
-".......#........................"
-"..####.........................."
-"................................"))
-
-(defparameter *map-height* 32)
-(defparameter *map-width* 32)
-
 
 ;;; some useful functions for you
 
@@ -781,10 +909,6 @@ trail of spaces on the map for example.  Returns NIL."
 ;; The four directions.  For relative direction, you might
 ;; assume that the ant always PERCEIVES things as if it were
 ;; facing north.
-(defconstant *n* 0)
-(defconstant *e* 1)
-(defconstant *s* 2)
-(defconstant *w* 3)
 
 (defmacro absolute-direction (relative-dir ant-dir)
   "If the ant is facing ANT-DIR, then converts the perceived
@@ -809,31 +933,20 @@ direction from the given y position.  Toroidal."
 	*map-height*))
 
 
-(defparameter *current-move* 0 "The move # that the ant is at right now")
-(defparameter *num-moves* 600 "How many moves the ant may make")
-(defparameter *current-x-pos* 0 "The current X position of the ant")
-(defparameter *current-y-pos* 0 "The current Y position of the ant")
-(defparameter *current-ant-dir* *e* "The current direction the ant is facing")
-(defparameter *eaten-pellets* 0 "How many pellets the ant has eaten so far")
-(defparameter *map* (make-map *map-strs*) "The ant's map")
-
-
-
-
 ;;; the function set you have to implement
 
 (defmacro if-food-ahead (then else)
   "If there is food directly ahead of the ant, then THEN is evaluated,
 else ELSE is evaluated"
   ;; because this is an if/then statement, it MUST be implemented as a macro.
-  
+
     ;;; IMPLEMENT ME
 )
 
 (defun progn2 (arg1 arg2)
     "Evaluates arg1 and arg2 in succession, then returns the value of arg2"
     (declaim (ignore arg1))
-    arg2)  ;; ...though in artificial ant, the return value isn't used ... 
+    arg2)  ;; ...though in artificial ant, the return value isn't used ...
 
 (defun progn3 (arg1 arg2 arg3)
   "Evaluates arg1, arg2, and arg3 in succession, then returns the value of arg3"
@@ -846,24 +959,61 @@ and moves the ant forward, consuming any pellet under the new square where the
 ant is now.  Perhaps it might be nice to leave a little trail in the map showing
 where the ant had gone."
 
-      ;;; IMPLEMENT ME
-  )
+(print "inside of function")
+(if (<= *current-move* *num-moves*)
+  (progn
+  (print "inside of moves")
+  (setf *current-move* (+ *current-move* 1))
+  (if (= *current-ant-dir* 0)
+    (progn
+    (print "moving left")
+    (setf *current-y-pos* (- *current-y-pos* 1))))
+  (if (= *current-ant-dir* 1)
+    (progn
+    (print "moving right")
+    (setf *current-y-pos* (+ *current-y-pos* 1))))
+  (if (= *current-ant-dir* 2)
+    (progn
+    (print "moving up")
+    (setf *current-x-pos* (+ *current-x-pos* 1))))
+  (if (= *current-ant-dir* 3)
+    (progn
+    (print "moving down")
+    (setf *current-x-pos* (- *current-x-pos* 1))))))
+(if (equal "#" (subseq (elt *map-strs-copy* *current-x-pos*) *current-y-pos* (+ (- (length (elt *map-strs-copy* *current-x-pos*)) (length (subseq (elt *map-strs-copy* *current-x-pos*) *current-y-pos*))) 1)))
+    (progn
+    (setf *map-str-copy* (substitute (concatenate 'string (subseq (elt *map-strs-copy* *current-x-pos*) 0 *current-y-pos*) (replace (subseq (elt *map-strs-copy* *current-x-pos*) *current-y-pos* (+ *current-y-pos* 1)) "-") (subseq (elt *map-strs-copy* *current-x-pos*) (+ *current-y-pos* 1) (- (length (elt *map-strs-copy* *current-x-pos*)) 1))) (elt *map-strs-copy* *current-x-pos*) *map-strs-copy*))
+    (setf *eaten-pellets* (+ *eaten-pellets* 1)))))
 
 
 (defun left ()
   "Increments the move count, and turns the ant left"
 
-      ;;; IMPLEMENT ME
-)
+  (if (<= *current-move* *num-moves*)
+    (progn
+    (setf *current-move* (+ *current-move* 1))
+    (if (= *current-ant-dir* 0)
+      (setf *current-ant-dir* 3)
+      (if (= *current-ant-dir* 1)
+        (setf *current-ant-dir* 2)
+        (if (= *current-ant-dir* 2)
+          (setf *current-ant-dir* 0)
+          (if (= *current-ant-dir* 3)
+            (setf *current-ant-dir* 1))))))))
 
 (defun right ()
   "Increments the move count, and turns the ant right"
-
-      ;;; IMPLEMENT ME
-)
-
-(defparameter *nonterminal-set* nil)
-(defparameter *terminal-set* nil)
+  (if (<= *current-move* *num-moves*)
+    (progn
+    (setf *current-move* (+ *current-move* 1))
+    (if (= *current-ant-dir* 0)
+      (setf *current-ant-dir* 2)
+      (if (= *current-ant-dir* 1)
+        (setf *current-ant-dir* 3)
+        (if (= *current-ant-dir* 2)
+          (setf *current-ant-dir* 1)
+          (if (= *current-ant-dir* 3)
+            (setf *current-ant-dir* 0))))))))
 
 ;; I provide this for you
 (defun gp-artificial-ant-setup ()
