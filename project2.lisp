@@ -134,6 +134,47 @@ Information on compiling code and doing compiler optimizations can be found in t
 (defparameter *nonterminal-set* nil)
 (defparameter *terminal-set* nil)
 
+(defun max-ones (vector)
+  (let ((count 0))
+    (dolist (element vector)
+      (if (= element 1)
+	  (setf count (+ count 1))))
+    (return-from max-ones count)))
+
+(defun trap (vector)
+  (let ((count 0))
+    (dolist (element vector)
+      (if (= element 0)
+	  (setf count (+ count 1))))
+
+    (if (= count 0)
+	(return-from trap (+ (length vector) 1))
+	(return-from trap count))))
+
+(defun leading-ones (vector)
+  (let ((count 0) (run T))
+    (dolist (element vector)
+      (if run
+	  (if (/= element 0)
+	      (setf count (+ count 1))
+	      (setf run nil))))
+    (return-from leading-ones count)))
+
+(defun leading-ones-blocks (vector b)
+  (let ((count 0) (ones-count 0))
+    (dolist (element vector)
+      (if (/= element 0)
+	  (progn
+	    (setf ones-count (+ ones-count 1))
+	    (if (= ones-count b)
+		(progn
+		  (setf count (+ count 1))
+		  (setf ones-count 0))))))
+    (return-from leading-ones-blocks count)))
+
+
+(defparameter *boolean-fitness* #'max-ones)
+
 ;;; Useful Functions and Macros
 
 (defmacro swap (elt1 elt2)
@@ -226,6 +267,9 @@ prints that fitness and individual in a pleasing manner."
 ;;; :leading-ones
 ;;; :leading-ones-blocks
 
+
+
+
 (defun uniform-crossover (ind1 ind2 &key (length *boolean-vector-length*) (crossover-probability *boolean-crossover-probability*))
   "Performs uniform crossover on the two individuals, modifying them in place.
 *crossover-probability* is the probability that any given allele will crossover.
@@ -254,12 +298,10 @@ given allele in a child will mutate.  Mutation simply flips the bit of the allel
     (uniform-crossover new1 new2)
     (list (mutate-boolean-vector new1) (mutate-boolean-vector new2))))
 
-(defun boolean-vector-evaluator (ind1)
+(defun boolean-vector-evaluator (ind1 &key (fitness-function *boolean-fitness*))
   "Evaluates an individual, which must be a boolean-vector, and returns
 its fitness."
-
-    ;;; IMPLEMENT ME
-)
+    (funcall (fitness-function ind1)))
 
 (defun boolean-vector-sum-setup (&key debug crossProb mutateProb mutateVar tourny min max length alpha dynamic record)
   "Does nothing.  Perhaps you might use this function to set
@@ -840,13 +882,11 @@ direction from the given y position.  Toroidal."
 
 
 ;;; the function set you have to implement
-
 (defmacro if-food-ahead (then else)
   "If there is food directly ahead of the ant, then THEN is evaluated,
 else ELSE is evaluated"
   ;; because this is an if/then statement, it MUST be implemented as a macro.
-    `(if (food-p) ,then ,else))
-
+  `(if (food-p) ,then ,else))
 
 (defun progn2 (arg1 arg2)
     "Evaluates arg1 and arg2 in succession, then returns the value of arg2"
