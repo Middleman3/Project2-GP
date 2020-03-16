@@ -664,12 +664,7 @@ If n is bigger than the number of nodes in the tree
     ;;; IMPLEMENT ME
   )
 
-
-(defparameter *mutation-size-limit* 10)
-(defun subtree (ind n)
-  "Returns the n'th subtree using nth-subtree-parent"
-					;(apply #'elt (nth-subtree-parent ind n)))
-  (
+(defparameter *mutation-size-limit* 10)  
 
 (defun random-subtree (ind)
   "Returns a random strict subtree (cannot be root) of the given individual"
@@ -679,7 +674,7 @@ If n is bigger than the number of nodes in the tree
   "given a tree, calculates the maximum depth of the tree where (max-depth (a))=0"
   (apply #'max (mapcar (lambda (node) (if (listp node) (1+ (max-depth node)) 1))
 		       (rest root))))
-gg
+
 ;(defun depth (root targetNode)
 ;   "Given a tree and a node within that tree, calculates the depth of the node within the tree,
 ; where (depth root root) -> 0"
@@ -700,7 +695,6 @@ gg
  		     (rest subtree))))
     (recurse root 0)))
  
-
 (defun subtree-mutation (ind &key (restrict-size *restrict-size*) (max-size *size-limit*) (mutate-size-limit *mutation-size-limit*))
   "Randomly selects a subtree of ind, determines its maximum depth,
 and replaces it with a new tree, perhaps restricting its size"
@@ -789,7 +783,6 @@ returning most-positive-fixnum as the output of that expression."
   ;;;  ....
   ;;;  (error (condition)
   ;;;     (format t "~%Warning, ~a" condition) most-positive-fixnum))
-
 
   ;;; IMPLEMENT ME
 
