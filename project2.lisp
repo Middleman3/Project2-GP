@@ -940,7 +940,7 @@ direction from the given y position.  Toroidal."
 else ELSE is evaluated"
   ;; because this is an if/then statement, it MUST be implemented as a macro.
 
-    ;;; IMPLEMENT ME
+    (if (food-p) ,then ,else))
 )
 
 (defun progn2 (arg1 arg2)
@@ -1032,7 +1032,11 @@ where the ant had gone."
 for *num-moves* moves.  The fitness is the number of pellets eaten -- thus
 more pellets, higher (better) fitness."
 
-      ;;; IMPLEMENT ME
+        (setf *map-str-copy* (copy-sequence *map-str*))
+  (setf *eaten-pellets* 0)
+  (dotimes (number *num-moves* *eaten-pellet)
+    (eval (ind))
+    )
   )
 
 ;; you might choose to write your own printer, which prints out the best
