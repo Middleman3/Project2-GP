@@ -74,7 +74,7 @@ Information on compiling code and doing compiler optimizations can be found in t
 (defparameter *float-mutation-variance* 0.01)     ;; I just made up this number
 
 (defparameter *size-limit* 20)
-
+(defparameter *restrict-size* '())
 (defparameter *mutation-size-limit* 10)
 
 (defparameter *num-vals* 20)
@@ -82,7 +82,7 @@ Information on compiling code and doing compiler optimizations can be found in t
 
 (defparameter *x* nil) ;; to be set in gp-evaluator
 
-
+(defparameter *map-str-copy* '())
 (defparameter *map-strs* '(
 ".###............................"
 "...#............................"
@@ -216,82 +216,6 @@ prints that fitness and individual in a pleasing manner."
 (defparameter *dynamic* nil)
 (defparameter *record* nil)
 
-
-(defun evolve (generations pop-size
-	       &key setup creator selector modifier evaluator printer (mutate-prob *boolean-mutation-probability*))
-  "Evolves for some number of GENERATIONS, creating a population of size
-POP-SIZE, using various functions"
-  ;; The functions passed in are as follows:
-  ;;(SETUP)                     called at the beginning of evolution, to set up
-  ;;                            global variables as necessary
-  ;;(CREATOR)                   creates a random individual
-  ;;(SELECTOR num pop fitneses) given a population and a list of corresponding fitnesses,
-  ;;                            selects and returns NUM individuals as a list.
-  ;;                            An individual may appear more than once in the list.
-  ;;(MODIFIER ind1 ind2)        modifies individuals ind1 and ind2 by crossing them
-  ;;                            over and mutating them.  Returns the two children
-  ;;                            as a list: (child1 child2).  Nondestructive to
-  ;;                            ind1 and ind2.
-  ;;(PRINTER pop fitnesses)     prints the best individual in the population, plus
-  ;;                            its fitness, and any other interesting statistics
-  ;;                            you think interesting for that generation.
-  ;;(EVALUATOR individual)      evaluates an individual, and returns its fitness.
-  ;;Pop will be guaranteed to be a multiple of 2 in size.
-  ;;
-  ;; HIGHER FITNESSES ARE BETTER
-
-  ;; your function should call PRINTER each generation, and also print out or the
-  ;; best individual discovered over the whole run at the end, plus its fitness
-  ;; and any other statistics you think might be nifty.
-
-(funcall setup :record nil)
-  (let* ((population (generate-list pop-size creator t))
-	 (fitnesses (mapcar evaluator population))
-	  chosen offspring bestIndex (maxFitness 0) (deltaFitness 0) (i 0)) ;<for selection 1>
-
-    (dotimes (gen generations)
-
-      ; Calculate change in best fitness
-      (setf deltaFitness (abs (- maxFitness (setf maxFitness (apply #'max 0 fitnesses)))))
-
-      ;;; modify mutation rate
-      (if *dynamic* (setf mutate-prob (if (> 1 mutate-prob)
-				       (+ mutate-prob (* *alpha* (if (< deltaFitness 1) (- 1 deltaFitness) 0)))
-				       1)))
-
-      ; get some statistics // c-5 = list of quantity of values >5 per individual
-      (let* ((c-5 (mapcar #'list-length (mapcar (lambda (ind) (remove-if (lambda (val) (> 5 val)) ind)) population))))
-
-      ; rank individuals
-        (if *debug*
-            (progn (format t "~%Generation ~D: ~%Delta fitness = ~F~%Mutation Rate = ~F~%Count of 5+:~%0=~D  1=~D  2=~D  3=~D  4=~D  5=~D  6=~D  7=~D~%"
-                           gen deltaFitness mutate-prob (count 0 c-5) (count 1 c-5) (count 2 c-5) (count 3 c-5) (count 4 c-5) (count 5 c-5)
-			   (count 6 c-5) (count 7 c-5))
-                   (funcall printer population fitnesses))))
-
-      ; #| SELECTION 1
-      ; choose half the population TWEAK ME!!!!!!!!!!
-      (setf chosen (funcall selector (/ pop-size 2) population fitnesses))
-
-      ; build up an offspring set to be the new population
-      (while (< (list-length offspring) pop-size)
-	(let ((parent1 (elt chosen (mod (incf i) (list-length chosen))))
-	      (parent2 (elt chosen (random (list-length chosen)))))
-	  (setf offspring (append offspring (funcall modifier parent1 parent2)))))
-
-      ; evolve
-      (setf population offspring)
-      (setf fitnesses (mapcar evaluator population))
-      (setf offspring nil))
-
-    ; Final Statistics
-    (setf bestIndex (position (apply #'max (first fitnesses) fitnesses) fitnesses))
-    (format t "~%Best Fitness: ~F ~%Best Individual of Evolution: ~A"
-	   (elt fitnesses bestIndex) (elt population bestIndex));  (setf *record* (elt fitnesses bestIndex)) (elt population bestIndex))
-
-    ; return statement
-    population))
-
 ;;;;;; BOOLEAN VECTOR GENETIC ALGORTITHM
 
 ;;; Creator, Modifier, Evaluator, and Setup functions for the
@@ -397,11 +321,13 @@ and the floating-point ranges involved, etc.  I dunno."
 ;;; as [-5.12, 5.12].  Other problems have other traditional min/max
 ;;; values, consult Section 11.2.2.
 
+(defun betweenp (small med large)
+  (and (< small med) (< med large))) 
+
 (defun gaussian-random (mean variance)
-  "Generates a random number under a gaussian distribution with the
-given mean and variance (using the Box-Muller-Marsaglia method)"
+  "Generates a random number under a gaussian distribution with the given mean and variance (using the Box-Muller-Marsaglia method)"
   (let (x y (w 0))
-    (while (not (and (< 0 w) (< w 1)))
+    (while (not (and (< 0 w) (< w 1))) '()
            (setf x (- (random 2.0) 1.0))
            (setf y (- (random 2.0) 1.0))
            (setf w (+ (* x x) (* y y))))
@@ -477,14 +403,10 @@ its fitness."
 ;;; simple vectors.  Get the GA system working right before tackling
 ;;; this part, trust me.
 
-
-
 ;; set up in the gp setup function -- for example, see
 ;; the code for gp-symbolic-regression-setup
 (defparameter *nonterminal-set* nil)
 (defparameter *terminal-set* nil)
-
-
 
 ;;; important hint: to use SETF to change the position of an element in a list
 ;;; or a tree, you need to pass into SETF an expression starting with the
@@ -630,12 +552,12 @@ If n is bigger than the number of nodes in the tree
  (except for root)."
   (let ((counter (make-counter)))
     (labels ((recurse (root)
-	       (if (funcall counter n) (return-from depth-first root))
+	       (if (funcall counter n) (return-from nth-subtree root))
 	       (mapcar (lambda (subtree)
 			 (if (listp subtree)
 			     (recurse subtree)
 			     (if (funcall counter n)
-				 (return-from depth-first subtree))))
+				 (return-from nth-subtree subtree))))
 		       (rest root))))
 	     (recurse tree))))
 
@@ -934,9 +856,8 @@ direction from the given y position.  Toroidal."
   "If there is food directly ahead of the ant, then THEN is evaluated,
 else ELSE is evaluated"
   ;; because this is an if/then statement, it MUST be implemented as a macro.
+    `(if (food-p) ,then ,else))
 
-    (if (food-p) ,then ,else))
-)
 
 (defun progn2 (arg1 arg2)
     "Evaluates arg1 and arg2 in succession, then returns the value of arg2"
@@ -1026,10 +947,9 @@ where the ant had gone."
   "Evaluates an individual by putting it in a fresh map and letting it run
 for *num-moves* moves.  The fitness is the number of pellets eaten -- thus
 more pellets, higher (better) fitness."
-
-        (setf *map-str-copy* (copy-sequence *map-str*))
+  (setf *map-str-copy* (copy-sequence *map-strs*))
   (setf *eaten-pellets* 0)
-  (dotimes (number *num-moves* *eaten-pellet)
+  (dotimes (number *num-moves* *eaten-pellets*)
     (eval (ind))
     )
   )
