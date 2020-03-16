@@ -55,7 +55,6 @@ Information on compiling code and doing compiler optimizations can be found in t
 "Speed" chapter of Graham.
 |#
 
-
 (defparameter *boolean-crossover-probability* 0.2)
 (defparameter *boolean-mutation-probability* 0.01)
 (defparameter *boolean-vector-length* 100)
@@ -67,7 +66,6 @@ Information on compiling code and doing compiler optimizations can be found in t
 (defparameter *float-problem :rastrigin)
 (defparameter *float-min* -5.12)  ;; these will change based on the problem
 (defparameter *float-max* 5.12)   ;; likewise
-
 
 (defparameter *float-crossover-probability* 0.2)
 (defparameter *float-mutation-probability* 0.1)   ;; I just made up this number
@@ -122,10 +120,8 @@ Information on compiling code and doing compiler optimizations can be found in t
 (defconstant *s* 2)                                                                                 
 (defconstant *w* 3) 
 
-
 (defparameter *map-height* 32)
 (defparameter *map-width* 32)
-
 
 (defparameter *current-move* 0 "The move # that the ant is at right now")
 (defparameter *num-moves* 600 "How many moves the ant may make")
@@ -135,11 +131,8 @@ Information on compiling code and doing compiler optimizations can be found in t
 (defparameter *eaten-pellets* 0 "How many pellets the ant has eaten so far")
 (defparameter *map-strs-copy* (copy-seq *map-strs*))
 
-
 (defparameter *nonterminal-set* nil)
 (defparameter *terminal-set* nil)
-
-
 
 ;;; Useful Functions and Macros
 
@@ -300,7 +293,6 @@ and the floating-point ranges involved, etc.  I dunno."
 ;;; GA Max-ONES Problem.  Assume that you are evolving a vector
 ;;; of floating-point numbers *float-vector-length* long.
 
-
 ;;; The default test function is Rastrigin.
 ;;;; Rastrigin is defined in section 11.2.2 of "Essentials of Metaheuristics"
 ;;; by yours truly.  In that section are defined several other floating-point functions
@@ -427,10 +419,10 @@ its fitness."
 (defun random-dequeue (queue)
   "Picks a random element in queue and removes and returns it.
 Error generated if the queue is empty."
-  (break)
+ ; (break)
   (let ((index (random (length queue))))
     (swap (elt queue index) (elt queue (1- (length queue))))
-    (break)
+  ;  (break)
     (vector-pop queue)))
 
 (defun range (size)
@@ -440,7 +432,7 @@ Error generated if the queue is empty."
 
 (defun build-node (non-terminal)
   "Given a non-terminal node of form (func argc), returns a quote resembling the invocation of func with argc fresh symbols"
-  (apply #'list (first non-terminal) (mapcar (lambda (dum) (gensym)) (make-sequence 'list (second non-terminal)))))
+  (apply #'list (first non-terminal) (mapcar (lambda (dum) '(x)) (make-sequence 'list (second non-terminal)))))
 
 (defun random-terminal ()
   "Returns a random element from the terminal set."
@@ -508,16 +500,13 @@ in function form (X) rather than just X."
 	    (count 1)
 	    tmp)
 	(enqueue-args root q)
-	(while (print (>= (print (+ count (length q))) size)) '()
+	(while (<= (+ count (length q)) size) '()
 	  (incf count)
 	  (setf tmp (random-non-terminal))
 	  (setf (random-dequeue q) tmp)
-	  (enqueue-args tmp q))
+	  (enqueue-args tmp q))	
 	(while (not (queue-empty-p (print q))) root
-	  (break)
-	  (break)
-	  (let (slot (random-dequeue q))
-	    (break)
+	  (let ((slot (random-dequeue q)))
 	    (setf slot (random-terminal)))))))
 
 (defun gp-creator (&optional (size-limit *size-limit*))
