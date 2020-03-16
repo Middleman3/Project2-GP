@@ -133,7 +133,6 @@ Information on compiling code and doing compiler optimizations can be found in t
 (defparameter *current-y-pos* 0 "The current Y position of the ant")
 (defparameter *current-ant-dir* *e* "The current direction the ant is facing")
 (defparameter *eaten-pellets* 0 "How many pellets the ant has eaten so far")
-(defparameter *map* (make-map *map-strs*) "The ant's map")
 (defparameter *map-strs-copy* (copy-seq *map-strs*))
 
 
@@ -846,14 +845,17 @@ returning most-positive-fixnum as the output of that expression."
 
 ;;; some useful functions for you
 
-(defun make-map (lis)
-  "Makes a map out of a string-list such as *MAP-STRS*"
+(defun make-map (lis)                                                                               
+  "Makes a map out of a string-list such as *MAP-STRS*"                                             
   (let ((map (make-array (list (length (first lis)) (length lis)))))
     (dotimes (y (length lis) map)
       (dotimes (x (length (elt lis y)))
-	(setf (aref map x y)
-	      (cond ((equalp #\# (elt (elt lis y) x)) nil)
-		    (t t)))))))
+        (setf (aref map x y)
+	       (cond ((equalp #\# (elt (elt lis y) x)) nil)
+		     (t t)))))))
+
+(defparameter *map* (make-map *map-strs*) "The ant's map")
+
 
 (defun direction-to-arrow (dir)
   "Returns a character which represents a given direction -- might
