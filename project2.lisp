@@ -161,7 +161,7 @@ Information on compiling code and doing compiler optimizations can be found in t
   (let ((count 0) (run T))
     (dolist (element vector)
       (if run
-	  (if (not element)
+	  (if element
 	      (setf count (+ count 1))
 	      (setf run nil))))
     (return-from leading-ones count)))
@@ -169,7 +169,7 @@ Information on compiling code and doing compiler optimizations can be found in t
 (defun leading-ones-blocks (vector b)
   (let ((count 0) (ones-count 0))
     (dolist (element vector)
-      (if (not element)
+      (if element
 	  (progn
 	    (setf ones-count (+ ones-count 1))
 	    (if (= ones-count b)
@@ -309,7 +309,11 @@ given allele in a child will mutate.  Mutation simply flips the bit of the allel
 (defun boolean-vector-evaluator (ind1)
   "Evaluates an individual, which must be a boolean-vector, and returns
 its fitness."
+<<<<<<< Updated upstream
   (funcall *boolean-fitness* ind1))
+=======
+    (funcall fitness-function ind1))
+>>>>>>> Stashed changes
 
 (defun boolean-vector-sum-setup (&key debug crossProb mutateProb mutateVar tourny min max length alpha dynamic record)
   "Does nothing.  Perhaps you might use this function to set
