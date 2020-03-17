@@ -302,11 +302,7 @@ given allele in a child will mutate.  Mutation simply flips the bit of the allel
 (defun boolean-vector-evaluator (ind1)
   "Evaluates an individual, which must be a boolean-vector, and returns
 its fitness."
-<<<<<<< Updated upstream
   (funcall *boolean-fitness* ind1))
-=======
-    (funcall fitness-function ind1))
->>>>>>> Stashed changes
 
 (defun boolean-vector-sum-setup (&key debug crossProb mutateProb mutateVar tourny min max length alpha dynamic record)
   "Does nothing.  Perhaps you might use this function to set
