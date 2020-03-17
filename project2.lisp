@@ -326,7 +326,8 @@ and the floating-point ranges involved, etc.  I dunno."
 	:selector #'tournament-selector
 	:modifier #'boolean-vector-modifier
         :evaluator #'boolean-vector-evaluator
-	:printer #'simple-printer)
+	:printer #'simple-printer
+        :mutate-prob *boolean-mutation-probability*)
 |#
 
 ;;;;;; FLOATING-POINT VECTOR GENETIC ALGORTITHM
@@ -423,8 +424,7 @@ its fitness."
   (if dynamic (setf *dynamic* dynamic))
   (if record (setf *record* record)))
 
-(defun evolve (generations pop-size
-	       &key setup creator selector modifier evaluator printer)
+(defun evolve (generations pop-size &key setup creator selector modifier evaluator printer mutate-prob)
   "Evolves for some number of GENERATIONS, creating a population of size
 POP-SIZE, using various functions"
 
@@ -467,8 +467,8 @@ POP-SIZE, using various functions"
       (setf deltaFitness (abs (- maxFitness (setf maxFitness (apply #'max 0 fitnesses)))))      
       
       ;;; modify mutation rate
-      (if *dynamic* (setf *mutation-probability* (if (> 1 *mutation-probability*)
-				       (+ *mutation-probability* (* *alpha* (if (< deltaFitness 1) (- 1 deltaFitness) 0)))
+      (if *dynamic* (setf mutate-prob (if (> 1 mutate-prob)
+				       (+ mutate-prob (* *alpha* (if (< deltaFitness 1) (- 1 deltaFitness) 0)))
 				       1)))
       
       ; get some statistics // c-5 = list of quantity of values >5 per individual                 
@@ -477,7 +477,7 @@ POP-SIZE, using various functions"
       ; rank individuals            
         (if *debug*
             (progn (format t "~%Generation ~D: ~%Delta fitness = ~F~%Mutation Rate = ~F~%Count of 5+:~%0=~D  1=~D  2=~D  3=~D  4=~D  5=~D  6=~D  7=~D~%"
-                           gen deltaFitness *mutation-probability* (count 0 c-5) (count 1 c-5) (count 2 c-5) (count 3 c-5) (count 4 c-5) (count 5 c-5)
+                           gen deltaFitness mutate-prob (count 0 c-5) (count 1 c-5) (count 2 c-5) (count 3 c-5) (count 4 c-5) (count 5 c-5)
 			   (count 6 c-5) (count 7 c-5))
                    (funcall printer population fitnesses))))
       
@@ -820,7 +820,6 @@ returning most-positive-fixnum as the output of that expression."
 
   )
 
-
 ;;; Example run
 #|
 (evolve 50 500
@@ -829,7 +828,8 @@ returning most-positive-fixnum as the output of that expression."
 	:selector #'tournament-selector
 	:modifier #'gp-modifier
         :evaluator #'gp-symbolic-regression-evaluator
-	:printer #'simple-printer)
+	:printer #'simple-printer
+        :mutate-prob *boolean-mutation-probability*))
 |#
 
 ;;; GP ARTIFICIAL ANT CODE
