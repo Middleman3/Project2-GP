@@ -137,14 +137,14 @@ Information on compiling code and doing compiler optimizations can be found in t
 (defun max-ones (vector)
   (let ((count 0))
     (dolist (element vector)
-      (if (= element 1)
+      (if element
 	  (setf count (+ count 1))))
     (return-from max-ones count)))
 
 (defun trap (vector)
   (let ((count 0))
     (dolist (element vector)
-      (if (= element 0)
+      (if (not element)
 	  (setf count (+ count 1))))
 
     (if (= count 0)
@@ -155,7 +155,7 @@ Information on compiling code and doing compiler optimizations can be found in t
   (let ((count 0) (run T))
     (dolist (element vector)
       (if run
-	  (if (/= element 0)
+	  (if element
 	      (setf count (+ count 1))
 	      (setf run nil))))
     (return-from leading-ones count)))
@@ -163,7 +163,7 @@ Information on compiling code and doing compiler optimizations can be found in t
 (defun leading-ones-blocks (vector b)
   (let ((count 0) (ones-count 0))
     (dolist (element vector)
-      (if (/= element 0)
+      (if element
 	  (progn
 	    (setf ones-count (+ ones-count 1))
 	    (if (= ones-count b)
@@ -173,6 +173,7 @@ Information on compiling code and doing compiler optimizations can be found in t
     (return-from leading-ones-blocks count)))
 
 (defparameter *boolean-fitness* #'max-ones)
+(defparameter *float-fitness* #'max-ones)
 
 ;;; Useful Functions and Macros
 
@@ -293,10 +294,10 @@ given allele in a child will mutate.  Mutation simply flips the bit of the allel
     (uniform-crossover new1 new2)
     (list (mutate-boolean-vector new1) (mutate-boolean-vector new2))))
 
-(defun boolean-vector-evaluator (ind1 &key (fitness-function *boolean-fitness*))
+(defun boolean-vector-evaluator (ind1)
   "Evaluates an individual, which must be a boolean-vector, and returns
 its fitness."
-    (funcall (fitness-function ind1)))
+  (funcall *boolean-fitness* ind1))
 
 (defun boolean-vector-sum-setup (&key debug crossProb mutateProb mutateVar tourny min max length alpha dynamic record)
   "Does nothing.  Perhaps you might use this function to set
@@ -399,12 +400,10 @@ given allele in a child will mutate.  Mutation does gaussian convolution on the 
     (gaussian-convolution new2)
     (list new1 new2)))
 
-(defun float-vector-sum-evaluator (ind1)
+(defun float-vector-sum-evaluator (ind1 &key (fitness-function *float-fitness*))
   "Evaluates an individual, which must be a floating point vector, and returns
 its fitness."
-
-    ;;; IMPLEMENT ME
-)
+  (funcall fitness-function ind1))
 
 (defun float-vector-sum-setup (&key debug crossProb mutateProb mutateVar tourny min max length alpha dynamic record)
   (if debug (setf *debug* debug))
@@ -629,7 +628,7 @@ in function form (X) rather than just X."
 (defun gp-creator (&optional (size-limit *size-limit*))
    "Picks a random number within size-limit, then uses ptc2 to create
 a tree of that size"
-  (ptc2 (random 1 size-limit)))
+  (ptc2 (random size-limit)))
 
 ;;; GP TREE MODIFICATION CODE
 
@@ -736,7 +735,7 @@ and replaces it with a new tree, perhaps restricting its size"
   "Flips a coin.  If it's heads, then ind1 and ind2 are
 crossed over using subtree crossover.  If it's tails, then
 ind1 and ind2 are each mutated using subtree mutation, where
-the size of the newly-generated subtrees is pickedc at random
+the size of the newly-generated subtrees is picked at random
 from 1 to 10 inclusive.  Doesn't damage ind1 or ind2.  Returns
 the two modified versions as a list."
  (if (random?)
@@ -878,7 +877,7 @@ returning most-positive-fixnum as the output of that expression."
   (let ((map (make-array (list (length (first lis)) (length lis)))))
     (dotimes (y (length lis) map)
       (dotimes (x (length (elt lis y)))
-        (setf (aref map x y)
+        (setf (elt map x y)
 	       (cond ((equalp #\# (elt (elt lis y) x)) nil)
 		     (t t)))))))
 
@@ -908,7 +907,7 @@ any type."
 			      `(:fill-pointer ,(fill-pointer array))
 			    nil))))
     (dotimes (x (array-total-size array) new-array)
-      (setf (row-major-aref new-array x)
+      (setf (row-major-elt new-array x)
 	    (funcall function (row-major-aref array x))))))
 
 (defun print-map (map)
