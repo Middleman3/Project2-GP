@@ -172,7 +172,6 @@ Information on compiling code and doing compiler optimizations can be found in t
 		  (setf ones-count 0))))))
     (return-from leading-ones-blocks count)))
 
-
 (defparameter *boolean-fitness* #'max-ones)
 
 ;;; Useful Functions and Macros
@@ -243,7 +242,6 @@ prints that fitness and individual in a pleasing manner."
 	    best-fit best-ind)
     fitnesses))
 
-
 (defparameter *tournament-size* 2)
 (defparameter *debug* nil)
 (defparameter *alpha* 0.1)
@@ -266,9 +264,6 @@ prints that fitness and individual in a pleasing manner."
 ;;; :trap
 ;;; :leading-ones
 ;;; :leading-ones-blocks
-
-
-
 
 (defun uniform-crossover (ind1 ind2 &key (length *boolean-vector-length*) (crossover-probability *boolean-crossover-probability*))
   "Performs uniform crossover on the two individuals, modifying them in place.
