@@ -172,7 +172,6 @@ Information on compiling code and doing compiler optimizations can be found in t
 		  (setf ones-count 0))))))
     (return-from leading-ones-blocks count)))
 
-
 (defparameter *boolean-fitness* #'max-ones)
 
 ;;; Useful Functions and Macros
@@ -243,7 +242,6 @@ prints that fitness and individual in a pleasing manner."
 	    best-fit best-ind)
     fitnesses))
 
-
 (defparameter *tournament-size* 2)
 (defparameter *debug* nil)
 (defparameter *alpha* 0.1)
@@ -266,9 +264,6 @@ prints that fitness and individual in a pleasing manner."
 ;;; :trap
 ;;; :leading-ones
 ;;; :leading-ones-blocks
-
-
-
 
 (defun uniform-crossover (ind1 ind2 &key (length *boolean-vector-length*) (crossover-probability *boolean-crossover-probability*))
   "Performs uniform crossover on the two individuals, modifying them in place.
@@ -326,7 +321,8 @@ and the floating-point ranges involved, etc.  I dunno."
 	:selector #'tournament-selector
 	:modifier #'boolean-vector-modifier
         :evaluator #'boolean-vector-evaluator
-	:printer #'simple-printer)
+	:printer #'simple-printer
+        :mutate-prob *boolean-mutation-probability*)
 |#
 
 ;;;;;; FLOATING-POINT VECTOR GENETIC ALGORTITHM
@@ -423,6 +419,85 @@ its fitness."
   (if dynamic (setf *dynamic* dynamic))
   (if record (setf *record* record)))
 
+(defun evolve (generations pop-size &key setup creator selector modifier evaluator printer mutate-prob)
+  "Evolves for some number of GENERATIONS, creating a population of size
+POP-SIZE, using various functions"
+
+  ;; The functions passed in are as follows:
+  ;;(SETUP)                     called at the beginning of evolution, to set up
+  ;;                            global variables as necessary
+  ;;(CREATOR)                   creates a random individual
+  ;;(SELECTOR num pop fitneses) given a population and a list of corresponding fitnesses,
+  ;;                            selects and returns NUM individuals as a list.
+  ;;                            An individual may appear more than once in the list.
+  ;;(MODIFIER ind1 ind2)        modifies individuals ind1 and ind2 by crossing them
+  ;;                            over and mutating them.  Returns the two children
+  ;;                            as a list: (child1 child2).  Nondestructive to
+  ;;                            ind1 and ind2.
+  ;;(PRINTER pop fitnesses)     prints the best individual in the population, plus
+  ;;                            its fitness, and any other interesting statistics
+  ;;                            you think interesting for that generation.
+  ;;(EVALUATOR individual)      evaluates an individual, and returns its fitness.
+  ;;Pop will be guaranteed to be a multiple of 2 in size.
+  ;;
+  ;; HIGHER FITNESSES ARE BETTER
+
+  ;; your function should call PRINTER each generation, and also print out or the
+  ;; best individual discovered over the whole run at the end, plus its fitness
+  ;; and any other statistics you think might be nifty.
+
+  ;;; HINTS: You could do this in many ways.  But I implemented it using
+  ;;; the following functions (among others)
+  ;;;
+  ;;; FUNCALL FORMAT MAPCAR LAMBDA APPLY
+
+  (funcall setup :record nil)
+  (let* ((population (generate-list pop-size creator t))
+	 (fitnesses (mapcar evaluator population))
+	  chosen offspring bestIndex (maxFitness 0) (deltaFitness 0) (i 0)) ;<for selection 1>
+
+    (dotimes (gen generations)
+
+      ; Calculate change in best fitness
+      (setf deltaFitness (abs (- maxFitness (setf maxFitness (apply #'max 0 fitnesses)))))      
+      
+      ;;; modify mutation rate
+      (if *dynamic* (setf mutate-prob (if (> 1 mutate-prob)
+				       (+ mutate-prob (* *alpha* (if (< deltaFitness 1) (- 1 deltaFitness) 0)))
+				       1)))
+      
+      ; get some statistics // c-5 = list of quantity of values >5 per individual                 
+      (let* ((c-5 (mapcar #'list-length (mapcar (lambda (ind) (remove-if (lambda (val) (> 5 val)) ind)) population))))	     
+
+      ; rank individuals            
+        (if *debug*
+            (progn (format t "~%Generation ~D: ~%Delta fitness = ~F~%Mutation Rate = ~F~%Count of 5+:~%0=~D  1=~D  2=~D  3=~D  4=~D  5=~D  6=~D  7=~D~%"
+                           gen deltaFitness mutate-prob (count 0 c-5) (count 1 c-5) (count 2 c-5) (count 3 c-5) (count 4 c-5) (count 5 c-5)
+			   (count 6 c-5) (count 7 c-5))
+                   (funcall printer population fitnesses))))
+      
+      ; #| SELECTION 1 
+      ; choose half the population TWEAK ME!!!!!!!!!!
+      (setf chosen (funcall selector (/ pop-size 2) population fitnesses))
+
+      ; build up an offspring set to be the new population
+      (while (< (list-length offspring) pop-size)
+	(let ((parent1 (elt chosen (mod (incf i) (list-length chosen))))
+	      (parent2 (elt chosen (random (list-length chosen)))))
+	  (setf offspring (append offspring (funcall modifier parent1 parent2)))))
+
+      ; evolve
+      (setf population offspring)
+      (setf fitnesses (mapcar evaluator population))
+      (setf offspring nil))
+    
+    ; Final Statistics
+    (setf bestIndex (position (apply #'max (first fitnesses) fitnesses) fitnesses))
+    (format t "~%Best Fitness: ~F ~%Best Individual of Evolution: ~A"
+	   (elt fitnesses bestIndex) (elt population bestIndex));  (setf *record* (elt fitnesses bestIndex)) (elt population bestIndex))
+    
+    ; return statement
+    population))
 
 ;(evolve 50 100
 ; 	:setup #'float-vector-sum-setup
@@ -474,7 +549,7 @@ Error generated if the queue is empty."
 
 (defun build-node (non-terminal)
   "Given a non-terminal node of form (func argc), returns a quote resembling the invocation of func with argc fresh symbols"
-  (apply #'list (first non-terminal) (mapcar (lambda (dum) '(x)) (make-sequence 'list (second non-terminal)))))
+  (apply #'list (first non-terminal) (mapcar (lambda (dum) (gensym)) (make-sequence 'list (second non-terminal)))))
 
 (defun random-terminal ()
   "Returns a random element from the terminal set."
@@ -535,14 +610,14 @@ plus the number of unfilled slots in the horizon, is >= size.
 Then fills the remaining slots in the horizon with terminals.
 Terminals like X should be added to the tree
 in function form (X) rather than just X."
-
   (if (equalp size 1) (random-terminal)
       (let ((q (make-queue))
 	    (root (random-non-terminal))
 	    (count 1)
 	    tmp)
 	(enqueue-args root q)
-	(while (<= (+ count (length q)) size) '()
+	;;;;;;;;;;;;;;;;;TODO
+	(while (>= (+ count (length q)) size) '()
 	  (incf count)
 	  (setf tmp (random-non-terminal))
 	  (setf (random-dequeue q) tmp)
@@ -740,7 +815,6 @@ returning most-positive-fixnum as the output of that expression."
 
   )
 
-
 ;;; Example run
 #|
 (evolve 50 500
@@ -749,7 +823,8 @@ returning most-positive-fixnum as the output of that expression."
 	:selector #'tournament-selector
 	:modifier #'gp-modifier
         :evaluator #'gp-symbolic-regression-evaluator
-	:printer #'simple-printer)
+	:printer #'simple-printer
+        :mutate-prob *boolean-mutation-probability*))
 |#
 
 ;;; GP ARTIFICIAL ANT CODE
