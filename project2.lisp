@@ -80,6 +80,9 @@ Information on compiling code and doing compiler optimizations can be found in t
 
 (defparameter *x* nil) ;; to be set in gp-evaluator
 
+
+(defparameter *is-numeric* nil)
+
 (defparameter *map-str-copy* '())
 (defparameter *map-strs* '(
 ".###............................"
@@ -466,14 +469,17 @@ POP-SIZE, using various functions"
 				       1)))
       
       ; get some statistics // c-5 = list of quantity of values >5 per individual                 
-      (let* ((c-5 (mapcar #'list-length (mapcar (lambda (ind) (remove-if (lambda (val) (> 5 val)) ind)) population))))	     
+      (if *is-numeric*
+	  (let* ((c-5 (mapcar #'list-length (mapcar (lambda (ind) (remove-if (lambda (val) (> 5 val))
+									     ind))
+						    population))))	     
 
-      ; rank individuals            
-        (if *debug*
-            (progn (format t "~%Generation ~D: ~%Delta fitness = ~F~%Mutation Rate = ~F~%Count of 5+:~%0=~D  1=~D  2=~D  3=~D  4=~D  5=~D  6=~D  7=~D~%"
-                           gen deltaFitness mutate-prob (count 0 c-5) (count 1 c-5) (count 2 c-5) (count 3 c-5) (count 4 c-5) (count 5 c-5)
-			   (count 6 c-5) (count 7 c-5))
-                   (funcall printer population fitnesses))))
+					; rank individuals            
+	    (if *debug*
+		(progn (format t "~%Generation ~D: ~%Delta fitness = ~F~%Mutation Rate = ~F~%Count of 5+:~%0=~D  1=~D  2=~D  3=~D  4=~D  5=~D  6=~D  7=~D~%"
+			       gen deltaFitness mutate-prob (count 0 c-5) (count 1 c-5) (count 2 c-5) (count 3 c-5) (count 4 c-5) (count 5 c-5)
+			       (count 6 c-5) (count 7 c-5))
+		       (funcall printer population fitnesses)))))
       
       ; #| SELECTION 1 
       ; choose half the population TWEAK ME!!!!!!!!!!
@@ -1041,8 +1047,8 @@ where the ant had gone."
   (setq *terminal-set* '(left right move))
   (setq *map* (make-map *map-strs*))
   (setq *current-move* 0)
-  (setq *eaten-pellets* 0))
-
+  (setq *eaten-pellets* 0)
+  )
 
 ;; you'll need to implement this as well
 
@@ -1050,12 +1056,10 @@ where the ant had gone."
   "Evaluates an individual by putting it in a fresh map and letting it run
 for *num-moves* moves.  The fitness is the number of pellets eaten -- thus
 more pellets, higher (better) fitness."
-  (setf *map-str-copy* (copy-sequence *map-strs*))
+  (setf *map-str-copy* (copy-seq *map-strs*))
   (setf *eaten-pellets* 0)
   (dotimes (number *num-moves* *eaten-pellets*)
-    (eval (ind))
-    )
-  )
+    (eval ind)))
 
 ;; you might choose to write your own printer, which prints out the best
 ;; individual's map.  But it's not required.
@@ -1069,3 +1073,4 @@ more pellets, higher (better) fitness."
         :evaluator #'gp-artificial-ant-evaluator
 	:printer #'simple-printer)
 |#
+
