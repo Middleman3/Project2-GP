@@ -872,14 +872,14 @@ returning most-positive-fixnum as the output of that expression."
 
 ;;; some useful functions for you
 
-(defun make-map (lis)                                                                               
-  "Makes a map out of a string-list such as *MAP-STRS*"                                             
+(defun make-map (lis)
+  "Makes a map out of a string-list such as *MAP-STRS*"
   (let ((map (make-array (list (length (first lis)) (length lis)))))
     (dotimes (y (length lis) map)
       (dotimes (x (length (elt lis y)))
-        (setf (elt map x y)
-	       (cond ((equalp #\# (elt (elt lis y) x)) nil)
-		     (t t)))))))
+	(setf (aref map x y)
+	      (cond ((equalp #\# (elt (elt lis y) x)) nil)
+		    (t t)))))))
 
 (defparameter *map* (make-map *map-strs*) "The ant's map")
 
