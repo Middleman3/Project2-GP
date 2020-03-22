@@ -995,8 +995,8 @@ direction from the given y position.  Toroidal."
 
 (defun on-map-p (x y)
   "Returns true if a x y is a coordinate on the map"
-  (and (betweenp 0 x (length (first (*map-strs-copy*))))
-	     (betweenp 0 y (length (*map-strs-copy*))))
+  (and (betweenp 0 x (length (first *map-strs-copy*)))
+       (betweenp 0 y (length *map-strs-copy*))))
   
 (defun foodp ()
   "Checks to see if there is food 1 space in cur-direction of current location"
@@ -1051,6 +1051,15 @@ where the ant had gone."
     (display 2 "Move: map=~A" *map-strs-copy*))))
 
 (defun left ()
+  (if (<= *current-move* *num-moves*)
+      (setf *current-ant-dir* (mod (1- *current-ant-dir*) 4))))
+
+(defun right ()
+  (if (<= *current-move* *num-moves*)
+      (setf *current-ant-dir* (mod (1+ *current-ant-dir*) 4))))
+
+#|
+(defun left ()
   "Increments the move count, and turns the ant left"
 
   (if (<= *current-move* *num-moves*)
@@ -1079,7 +1088,7 @@ where the ant had gone."
 	    (setf *current-ant-dir* 3)
           (if (= *current-ant-dir* 3)
             (setf *current-ant-dir* 0))))))))
-
+|#
 ;; I provide this for you
 (defun gp-artificial-ant-setup ()
   "Sets up vals"
