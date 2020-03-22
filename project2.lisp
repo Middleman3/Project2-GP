@@ -131,7 +131,6 @@ Information on compiling code and doing compiler optimizations can be found in t
 (defparameter *current-x-pos* 0 "The current X position of the ant")
 (defparameter *current-y-pos* 0 "The current Y position of the ant")
 (defparameter *current-ant-dir* *e* "The current direction the ant is facing")
-;; 0 - right :: 1 - down :: 2 - left :: 3 - up
 (defparameter *eaten-pellets* 0 "How many pellets the ant has eaten so far")
 (defparameter *map-strs-copy* (copy-seq *map-strs*))
 
@@ -671,7 +670,8 @@ in function form (X) rather than just X."
 	  (if (>= argc 1) (enqueue (select location) q)) ; queue up arg 1
 	  (if (>= argc 2) (enqueue (select (next location)) q))) ; queue up arg 2
 	(while (not (queue-empty-p q)) *root* ; start finalizing by filling in terminals
-	  (eval `(setf ,(random-dequeue q) '(,(random-terminal))))))))
+	  (eval `(setf ,(random-dequeue q) '(,(random-terminal))))
+	  ))))
 
 (defun gp-creator (&optional (size-limit *size-limit*))
    "Picks a random number within size-limit, then uses ptc2 to create
@@ -879,7 +879,7 @@ returning most-positive-fixnum as the output of that expression."
       (setf *x* val)
       (break)
       (incf loss (abs (- (eval ind) (poly-to-learn *x*)))))
-    (display "symb-regr-eval sum-error=~D" loss :debug-level 2) 
+    ;;(display "symb-regr-eval sum-error=~D" loss :debug-level 2) 
     (/ 1 loss)))
 
 
@@ -1024,7 +1024,7 @@ direction from the given y position.  Toroidal."
   "Returns true if a x y is a coordinate on the map"
   (and (betweenp 0 x (length (first *map-strs-copy*)))
        (betweenp 0 y (length *map-strs-copy*))))
-  
+
 (defun foodp ()
   "Checks to see if there is food 1 space in cur-direction of current location"
   (let* ((num (if (>= *current-ant-dir* 2) -1 1))
@@ -1061,21 +1061,22 @@ where the ant had gone."
 
 (if (<= *current-move* *num-moves*)
     (progn
-      ;; 0 - right :: 1 - down :: 2 - left :: 3 - up
+      
     (setf *current-move* (+ *current-move* 1))
     (setf *eaten-pellets* (+ *eaten-pellets* 1))
-    (if (= *current-ant-dir* 0)
-	(incf *current-x-pos*))
     (if (= *current-ant-dir* 1)
-	(incf *current-y-pos*))
+	(incf *current-x-pos*))
     (if (= *current-ant-dir* 2)
-	(decf *current-x-pos*))
+	(incf *current-y-pos*))
     (if (= *current-ant-dir* 3)
+	(decf *current-x-pos*))
+    (if (= *current-ant-dir* 0)
 	(decf *current-y-pos*))
-    (display 5 "Move: cur dir = ~A" *current-ant-dir*)
-    (display 5 "Move: current pos=~D, ~D" *current-x-pos* *current-y-pos*)
-    (setf (elt (elt *map-strs-copy* *current-y-pos*) *current-x-pos*) #\-)
-    (display 2 "Move: map=~A" *map-strs-copy*))))
+    ;;(display 5 "Move: cur dir = ~A" *current-ant-dir*)
+    ;;(display 5 "Move: current pos=~D, ~D" *current-x-pos* *current-y-pos*)
+    (if (on-map-p *current-x-pos* *current-y-pos*)
+	(let ((-move (direction-to-arrow *current-ant-dir*)))
+	     (setf (elt (elt *map-strs-copy* *current-y-pos*) *current-x-pos*) -move))))))
 
 (defun left ()
   (if (<= *current-move* *num-moves*)
@@ -1085,37 +1086,6 @@ where the ant had gone."
   (if (<= *current-move* *num-moves*)
       (setf *current-ant-dir* (mod (1+ *current-ant-dir*) 4))))
 
-#|
-(defun left ()
-  "Increments the move count, and turns the ant left"
-
-  (if (<= *current-move* *num-moves*)
-    (progn
-    (setf *current-move* (+ *current-move* 1))
-    (if (= *current-ant-dir* 0)
-      (setf *current-ant-dir* 3)
-      (if (= *current-ant-dir* 1)
-        (setf *current-ant-dir* 0)
-        (if (= *current-ant-dir* 2)
-          (setf *current-ant-dir* 1)
-          (if (= *current-ant-dir* 3)
-            (setf *current-ant-dir* 2))))))))
-
-(defun right ()
-  "Increments the move count, and turns the ant right"
-  ;; 0 - right :: 1 - down :: 2 - left :: 3 - up
-  (if (<= *current-move* *num-moves*)
-    (progn
-    (setf *current-move* (+ *current-move* 1))
-    (if (= *current-ant-dir* 0)
-	(setf *current-ant-dir* 1)
-      (if (= *current-ant-dir* 1)
-	  (setf *current-ant-dir* 2)
-        (if (= *current-ant-dir* 2)
-	    (setf *current-ant-dir* 3)
-          (if (= *current-ant-dir* 3)
-            (setf *current-ant-dir* 0))))))))
-|#
 ;; I provide this for you
 (defun gp-artificial-ant-setup ()
   "Sets up vals"
