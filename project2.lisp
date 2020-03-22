@@ -740,7 +740,7 @@ If n is bigger than the number of nodes in the tree
 (defun subtree (root n &optional (name 'root))
   "Same as nth-subtree-node, but returns an s-expression from the root instead of the parent"
   (let ((counter (make-counter :zero-based t))
-	  (excess (- n (- (num-nodes tree) 1))))
+	  (excess (- n (- (num-nodes root) 1))))
       (if (>= excess 0) (return-from subtree excess))
       (labels ((recurse (node accessor)
 		 (let ((children (rest node)))
@@ -749,7 +749,7 @@ If n is bigger than the number of nodes in the tree
 			   (child-accessor `(car ,(next-times (1+ i) accessor))))
 		       (if (funcall counter n) (return-from subtree child-accessor)
 			   (if (listp subtree) (recurse subtree child-accessor))))))))
-	(recurse tree name))))
+	(recurse root name))))
 
 (defparameter *mutation-size-limit* 10)
 
@@ -1013,7 +1013,7 @@ direction from the given y position.  Toroidal."
   "Returns true if a x y is a coordinate on the map"
   (and (betweenp 0 x (length (first *map-strs-copy*)))
        (betweenp 0 y (length *map-strs-copy*))))
-  
+
 (defun foodp ()
   "Checks to see if there is food 1 space in cur-direction of current location"
   (let* ((num (if (>= *current-ant-dir* 2) -1 1))
@@ -1064,7 +1064,7 @@ where the ant had gone."
     ;;(display 5 "Move: cur dir = ~A" *current-ant-dir*)
     ;;(display 5 "Move: current pos=~D, ~D" *current-x-pos* *current-y-pos*)
     (if (on-map-p *current-x-pos* *current-y-pos*)
-	(let (-move (direction-to-arrow *current-ant-dir*))
+	(let ((-move (direction-to-arrow *current-ant-dir*)))
 	     (setf (elt (elt *map-strs-copy* *current-y-pos*) *current-x-pos*) -move))))))
 
 (defun left ()
@@ -1075,38 +1075,6 @@ where the ant had gone."
   (if (<= *current-move* *num-moves*)
       (setf *current-ant-dir* (mod (1+ *current-ant-dir*) 4))))
 
-#|
-(defun left ()
-  "Increments the move count, and turns the ant left"
-  ;; 0 - right :: 1 - down :: 2 - left :: 3 - up
-  ;; 0 - up :: 1 - right :: 2 - down :: 3 - left
-  (if (<= *current-move* *num-moves*)
-    (progn
-    (setf *current-move* (+ *current-move* 1))
-    (if (= *current-ant-dir* 0)
-      (setf *current-ant-dir* 3)
-      (if (= *current-ant-dir* 1)
-        (setf *current-ant-dir* 0)
-        (if (= *current-ant-dir* 2)
-          (setf *current-ant-dir* 1)
-          (if (= *current-ant-dir* 3)
-            (setf *current-ant-dir* 2))))))))
-
-(defun right ()
-  "Increments the move count, and turns the ant right"
-  ;; 0 - right :: 1 - down :: 2 - left :: 3 - up
-  (if (<= *current-move* *num-moves*)
-    (progn
-    (setf *current-move* (+ *current-move* 1))
-    (if (= *current-ant-dir* 0)
-	(setf *current-ant-dir* 1)
-      (if (= *current-ant-dir* 1)
-	  (setf *current-ant-dir* 2)
-        (if (= *current-ant-dir* 2)
-	    (setf *current-ant-dir* 3)
-          (if (= *current-ant-dir* 3)
-            (setf *current-ant-dir* 0))))))))
-|#
 ;; I provide this for you
 (defun gp-artificial-ant-setup ()
   "Sets up vals"
