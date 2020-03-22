@@ -131,11 +131,44 @@ Information on compiling code and doing compiler optimizations can be found in t
 (defparameter *current-x-pos* 0 "The current X position of the ant")
 (defparameter *current-y-pos* 0 "The current Y position of the ant")
 (defparameter *current-ant-dir* *e* "The current direction the ant is facing")
+;; 0 - right :: 1 - down :: 2 - left :: 3 - up
 (defparameter *eaten-pellets* 0 "How many pellets the ant has eaten so far")
 (defparameter *map-strs-copy* (copy-seq *map-strs*))
 
 (defparameter *nonterminal-set* nil)
 (defparameter *terminal-set* nil)
+
+
+(defun sum-f (ind)
+  "Performs the Sum objective function.  Assumes that ind is a list of floats"
+  (reduce #'+ ind))
+
+(defun step-f (ind)
+  "Performs the Step objective function.  Assumes that ind is a list of floats"
+  (+ (* 6 (length ind))
+     (reduce #'+ (mapcar #'floor ind))))
+
+(defun sphere-f (ind)
+  "Performs the Sphere objective function.  Assumes that ind is a list of floats"
+  (- (reduce #'+ (mapcar (lambda (x) (* x x)) ind))))
+
+(defun rosenbrock-f (ind)
+  "Performs the Rosenbrock objective function.  Assumes that ind is a list of floats"
+  (- (reduce #'+ (mapcar (lambda (x x1)
+			   (+ (* (- 1 x) (- 1 x))
+			      (* 100 (- x1 (* x x)) (- x1 (* x x)))))
+			 ind (rest ind)))))
+
+(defun rastrigin-f (ind)
+  "Performs the Rastrigin objective function.  Assumes that ind is a list of floats"
+  (- (+ (* 10 (length ind))
+	(reduce #'+ (mapcar (lambda (x) (- (* x x) (* 10 (cos (* 2 pi x)))))
+			    ind)))))
+
+(defun schwefel-f (ind)
+  "Performs the Schwefel objective function.  Assumes that ind is a list of floats"
+  (- (reduce #'+ (mapcar (lambda (x) (* (- x) (sin (sqrt (abs x)))))
+			 (mapcar (lambda (x) (* x 100)) ind)))))
 
 (defun max-ones (vector)
   (let ((count 0))
@@ -176,7 +209,7 @@ Information on compiling code and doing compiler optimizations can be found in t
     (return-from leading-ones-blocks count)))
 
 (defparameter *boolean-fitness* #'max-ones)
-(defparameter *float-fitness* #'max-ones)
+(defparameter *float-fitness* #'step-f)
 
 ;;; Useful Functions and Macros
 
@@ -251,7 +284,7 @@ prints that fitness and individual in a pleasing manner."
     fitnesses))
 
 (defparameter *tournament-size* 2)
-(defparameter *debug* nil)
+(defparameter *debug* t)
 (defparameter *alpha* 0.1)
 (defparameter *dynamic* nil)
 (defparameter *record* nil)
@@ -305,6 +338,10 @@ given allele in a child will mutate.  Mutation simply flips the bit of the allel
   "Evaluates an individual, which must be a boolean-vector, and returns
 its fitness."
   (funcall *boolean-fitness* ind1))
+
+(defun float-vector-evaluator (ind1)
+
+  (funcall *float-fitness* ind1))
 
 (defun boolean-vector-sum-setup (&key debug crossProb mutateProb mutateVar tourny min max length alpha dynamic record)
   "Does nothing.  Perhaps you might use this function to set
@@ -381,7 +418,7 @@ and the floating-point ranges involved, etc.  I dunno."
       ;(format t "Individual ~D: ~A" i e)
       (if (random? *float-mutation-probability*)
 	  (progn
-	    (while out-of-bounds
+	    (while out-of-bounds nil
 	      ;(format t "~%~%E=~F  N=~F~%~F < ~F < ~F~%~%" (elt ind i) n *float-min* (+ (elt ind i) n) *float-max*))
 	      (setf n (gaussian-random mean *float-mutation-variance*))
 	      (if (and (> (+ (elt ind i) n) *float-min*) (< (+ (elt ind i) n) *float-max*))
@@ -456,17 +493,13 @@ POP-SIZE, using various functions"
   ;;; the following functions (among others)
   ;;;
   ;;; FUNCALL FORMAT MAPCAR LAMBDA APPLY
-
   (funcall setup :record nil)
   (let* ((population (generate-list pop-size creator t))
 	 (fitnesses (mapcar evaluator population))
 	  chosen offspring bestIndex (maxFitness 0) (deltaFitness 0) (i 0)) ;<for selection 1>
-
     (dotimes (gen generations)
-
       ; Calculate change in best fitness
       (setf deltaFitness (abs (- maxFitness (setf maxFitness (apply #'max 0 fitnesses)))))      
-      
       ;;; modify mutation rate
       (if *dynamic* (setf mutate-prob (if (> 1 mutate-prob)
 				       (+ mutate-prob (* *alpha* (if (< deltaFitness 1) (- 1 deltaFitness) 0)))
@@ -488,9 +521,8 @@ POP-SIZE, using various functions"
       ; #| SELECTION 1 
       ; choose half the population TWEAK ME!!!!!!!!!!
       (setf chosen (funcall selector (/ pop-size 2) population fitnesses))
-
       ; build up an offspring set to be the new population
-      (while (< (list-length offspring) pop-size)
+      (while (< (list-length offspring) pop-size) nil
 	(let ((parent1 (elt chosen (mod (incf i) (list-length chosen))))
 	      (parent2 (elt chosen (random (list-length chosen)))))
 	  (setf offspring (append offspring (funcall modifier parent1 parent2)))))
@@ -988,32 +1020,22 @@ and moves the ant forward, consuming any pellet under the new square where the
 ant is now.  Perhaps it might be nice to leave a little trail in the map showing
 where the ant had gone."
 
-(print "inside of function")
-(if (<= *current-move* *num-moves*)
-  (progn
-  (print "inside of moves")
-  (setf *current-move* (+ *current-move* 1))
-  (if (= *current-ant-dir* 0)
-    (progn
-    (print "moving left")
-    (setf *current-y-pos* (- *current-y-pos* 1))))
-  (if (= *current-ant-dir* 1)
-    (progn
-    (print "moving right")
-    (setf *current-y-pos* (+ *current-y-pos* 1))))
-  (if (= *current-ant-dir* 2)
-    (progn
-    (print "moving up")
-    (setf *current-x-pos* (+ *current-x-pos* 1))))
-  (if (= *current-ant-dir* 3)
-    (progn
-    (print "moving down")
-    (setf *current-x-pos* (- *current-x-pos* 1))))))
-(if (equal "#" (subseq (elt *map-strs-copy* *current-x-pos*) *current-y-pos* (+ (- (length (elt *map-strs-copy* *current-x-pos*)) (length (subseq (elt *map-strs-copy* *current-x-pos*) *current-y-pos*))) 1)))
-    (progn
-    (setf *map-str-copy* (substitute (concatenate 'string (subseq (elt *map-strs-copy* *current-x-pos*) 0 *current-y-pos*) (replace (subseq (elt *map-strs-copy* *current-x-pos*) *current-y-pos* (+ *current-y-pos* 1)) "-") (subseq (elt *map-strs-copy* *current-x-pos*) (+ *current-y-pos* 1) (- (length (elt *map-strs-copy* *current-x-pos*)) 1))) (elt *map-strs-copy* *current-x-pos*) *map-strs-copy*))
-    (setf *eaten-pellets* (+ *eaten-pellets* 1)))))
 
+(if (<= *current-move* *num-moves*)
+    (progn
+      ;; 0 - right :: 1 - down :: 2 - left :: 3 - up
+    (setf *current-move* (+ *current-move* 1))
+    (setf *eaten-pellets* (+ *eaten-pellets* 1))
+    (if (= *current-ant-dir* 0)
+	(incf *current-x-pos*))
+    (if (= *current-ant-dir* 1)
+	(incf *current-y-pos*))
+    (if (= *current-ant-dir* 2)
+	(decf *current-x-pos*))
+    (if (= *current-ant-dir* 3)
+	(decf *current-y-pos*))
+
+    (setf (elt (elt *map-strs-copy* *current-y-pos*) *current-x-pos*) #\-))))
 
 (defun left ()
   "Increments the move count, and turns the ant left"
@@ -1024,23 +1046,24 @@ where the ant had gone."
     (if (= *current-ant-dir* 0)
       (setf *current-ant-dir* 3)
       (if (= *current-ant-dir* 1)
-        (setf *current-ant-dir* 2)
+        (setf *current-ant-dir* 0)
         (if (= *current-ant-dir* 2)
-          (setf *current-ant-dir* 0)
+          (setf *current-ant-dir* 1)
           (if (= *current-ant-dir* 3)
-            (setf *current-ant-dir* 1))))))))
+            (setf *current-ant-dir* 2))))))))
 
 (defun right ()
   "Increments the move count, and turns the ant right"
+  ;; 0 - right :: 1 - down :: 2 - left :: 3 - up
   (if (<= *current-move* *num-moves*)
     (progn
     (setf *current-move* (+ *current-move* 1))
     (if (= *current-ant-dir* 0)
-      (setf *current-ant-dir* 2)
+	(setf *current-ant-dir* 1)
       (if (= *current-ant-dir* 1)
-        (setf *current-ant-dir* 3)
+	  (setf *current-ant-dir* 2)
         (if (= *current-ant-dir* 2)
-          (setf *current-ant-dir* 1)
+	    (setf *current-ant-dir* 3)
           (if (= *current-ant-dir* 3)
             (setf *current-ant-dir* 0))))))))
 
