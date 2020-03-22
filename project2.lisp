@@ -639,7 +639,7 @@ Error generated if the queue is empty."
 
   Note that this has some gotchas: the big gotcha is that you have to keep track of
   argument slots in lisp s-expressions, and not just pointers to the values presently
-  in those slots.  If you are totally lost as to how to implement that, I can provide
+  in those slots. If you are totally lost as to how to implement that, I can provide
   some hints, but you should try to figure it out on your own if you can.
 |#
 
@@ -677,7 +677,6 @@ in function form (X) rather than just X."
    "Picks a random number within size-limit, then uses ptc2 to create
 a tree of that size"
   (ptc2 (1+ (random size-limit))))
-
 
 ;;; GP TREE MODIFICATION CODE
 
@@ -734,11 +733,29 @@ If n is bigger than the number of nodes in the tree
 			   (if (listp subtree) (recurse subtree))))))))
 	(recurse tree))))
 
-(defparameter *mutation-size-limit* 10)  
+(defun next-times (n name)
+  "generates an s-expression of recursively cdring name n times"
+  (if (> n 0) (next (next-times (1- n) name)) `,name))
+
+(defun subtree (root n &optional (name 'root))
+  "Same as nth-subtree-node, but returns an s-expression from the root instead of the parent"
+  (let ((counter (make-counter :zero-based t))
+	  (excess (- n (- (num-nodes tree) 1))))
+      (if (>= excess 0) (return-from subtree excess))
+      (labels ((recurse (node accessor)
+		 (let ((children (rest node)))
+		   (dotimes (i (length children))
+		     (let ((subtree (elt children i))
+			   (child-accessor `(car ,(next-times (1+ i) accessor))))
+		       (if (funcall counter n) (return-from subtree child-accessor)
+			   (if (listp subtree) (recurse subtree child-accessor))))))))
+	(recurse tree name))))
+
+(defparameter *mutation-size-limit* 10)
 
 (defun random-subtree (ind)
   "Returns a random strict subtree (cannot be root) of the given individual"
-  `(nth-subtree-parent ,ind (random (num-nodes ,ind))))
+  (subtree ind (random (num-nodes ind))))
 
 (defun max-depth (root)
   "given a tree, calculates the maximum depth of the tree where (max-depth (a))=0"
@@ -762,7 +779,7 @@ and replaces it with a new tree, perhaps restricting its size"
       (setf (random-subtree ind) (gp-creator mutate-size-limit))
       (let* ((full-height (max-depth ind))
 	     (n (random (num-nodes ind)))
-	     (new-subtree-depth (- max-size (depth ind (nth-subtree-parent ind n)))))
+	     (new-subtree-depth (- max-size (depth ind (subtree ind n)))))
 	     (setf (nth-subtree-parent ind n) (ptc2 new-subtree-depth)))))
 
 (defun gp-modifier (ind1 ind2)
@@ -909,7 +926,6 @@ returning most-positive-fixnum as the output of that expression."
 
 ;;; Note that in my thesis it says 400 moves and not 600.  We're going with
 ;;; 600 here.  It's easier.
-
 
 ;;; some useful functions for you
 
