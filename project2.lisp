@@ -180,6 +180,10 @@ Information on compiling code and doing compiler optimizations can be found in t
 
 ;;; Useful Functions and Macros
 
+(defun display (debug-level description &rest args)
+  ;(print description)
+  (if (<= debug-level *debug*) (apply #'format t description args)))
+
 (defmacro swap (elt1 elt2)
   "Swaps elt1 and elt2, using SETF.  Returns nil."
   (let ((temp (gensym)))
@@ -641,7 +645,8 @@ in function form (X) rather than just X."
 (defun gp-creator (&optional (size-limit *size-limit*))
    "Picks a random number within size-limit, then uses ptc2 to create
 a tree of that size"
-  (ptc2 (random size-limit)))
+  (ptc2 (1+ (random size-limit))))
+
 
 ;;; GP TREE MODIFICATION CODE
 
@@ -723,7 +728,7 @@ If n is bigger than the number of nodes in the tree
   "Randomly selects a subtree of ind, determines its maximum depth,
 and replaces it with a new tree, perhaps restricting its size"
   (if (not restrict-size)
-      (setf (random-subtree ind) (ptc2 mutate-size-limit))
+      (setf (random-subtree ind) (gp-creator mutate-size-limit))
       (let* ((full-height (max-depth ind))
 	     (n (random (num-nodes ind)))
 	     (new-subtree-depth (- max-size (depth ind (nth-subtree-parent ind n)))))
@@ -809,8 +814,15 @@ returning most-positive-fixnum as the output of that expression."
   ;;;     (format t "~%Warning, ~a" condition) most-positive-fixnum))
 
   ;;; IMPLEMENT ME
+  (break)
+  (let  ((loss 0))
+    (dolist (val *vals*)
+      (setf *x* val)
+      (break)
+      (incf loss (abs (- (eval ind) (poly-to-learn *x*)))))
+    (display "symb-regr-eval sum-error=~D" loss :debug-level 2) 
+    (/ 1 loss)))
 
-  )
 
 ;;; Example run
 #|
