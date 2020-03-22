@@ -1,4 +1,4 @@
-;;; This is the "extended" version of Project 1
+;; This is the "extended" version of Project 1
 
 #|
 In this project you will produce three things:
@@ -54,7 +54,7 @@ compile your file first and then load that.
 Information on compiling code and doing compiler optimizations can be found in the
 "Speed" chapter of Graham.
 |#
-
+(defparameter *debug-level* 5)
 (defparameter *boolean-crossover-probability* 0.2)
 (defparameter *boolean-mutation-probability* 0.01)
 (defparameter *boolean-vector-length* 100)
@@ -215,7 +215,7 @@ Information on compiling code and doing compiler optimizations can be found in t
 
 (defun display (debug-level description &rest args)
   ;(print description)
-  (if (<= debug-level *debug*) (apply #'format t description args)))
+  (if (<= debug-level *debug-level*) (apply #'format t description args)))
 
 (defmacro swap (elt1 elt2)
   "Swaps elt1 and elt2, using SETF.  Returns nil."
@@ -1020,7 +1020,6 @@ and moves the ant forward, consuming any pellet under the new square where the
 ant is now.  Perhaps it might be nice to leave a little trail in the map showing
 where the ant had gone."
 
-
 (if (<= *current-move* *num-moves*)
     (progn
       ;; 0 - right :: 1 - down :: 2 - left :: 3 - up
@@ -1034,8 +1033,10 @@ where the ant had gone."
 	(decf *current-x-pos*))
     (if (= *current-ant-dir* 3)
 	(decf *current-y-pos*))
-
-    (setf (elt (elt *map-strs-copy* *current-y-pos*) *current-x-pos*) #\-))))
+    (display 5 "Move: cur dir = ~A" *current-ant-dir*)
+    (display 5 "Move: current pos=~D, ~D" *current-x-pos* *current-y-pos*)
+    (setf (elt (elt *map-strs-copy* *current-y-pos*) *current-x-pos*) #\-)
+    (display 2 "Move: map=~A" *map-strs-copy*))))
 
 (defun left ()
   "Increments the move count, and turns the ant left"
