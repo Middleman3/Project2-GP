@@ -138,7 +138,6 @@ Information on compiling code and doing compiler optimizations can be found in t
 (defparameter *nonterminal-set* nil)
 (defparameter *terminal-set* nil)
 
-
 (defun sum-f (ind)
   "Performs the Sum objective function.  Assumes that ind is a list of floats"
   (reduce #'+ ind))
@@ -996,13 +995,20 @@ direction from the given y position.  Toroidal."
 	      (t (+ ,y-pos (- ,steps) *map-height*)))       ;; n
 	*map-height*))
 
-
+(defun foodp ()
+  "Checks to see if there is food 1 space in cur-direction of current location"
+  (let* ((num (if (>= *current-ant-dir* 2) -1 1))
+	 (coords (if (evenp *current-ant-dir*)
+		     (list (+ *current-x-pos* num) *current-y-pos*)
+		     (list (*current-x-pos* (+ num *current-y-pos*))))))
+    (char-equal (elt (elt *map-strs-copy* (second coords)) (first coords)) #\#)))
+		     
 ;;; the function set you have to implement
 (defmacro if-food-ahead (then else)
   "If there is food directly ahead of the ant, then THEN is evaluated,
 else ELSE is evaluated"
   ;; because this is an if/then statement, it MUST be implemented as a macro.
-  `(if (food-p) ,then ,else))
+  `(if (foodp) ,then ,else))
 
 (defun progn2 (arg1 arg2)
     "Evaluates arg1 and arg2 in succession, then returns the value of arg2"
