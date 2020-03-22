@@ -522,13 +522,7 @@ POP-SIZE, using various functions"
 (defparameter *nonterminal-set* nil)
 (defparameter *terminal-set* nil)
 
-;;; important hint: to use SETF to change the position of an element in a list
-;;; or a tree, you need to pass into SETF an expression starting with the
-;;; parent.  For example (setf (car parent) val) .... thus you HAVE to have
-;;; access to the parent, not just the child.  This means that to store a
-;;; "position", you have to store away the parent and the arg position of
-;;; child, not the child itself.
-
+;;; Queue Implementation
 (defun make-queue ()
   "Makes a random-queue"
   (make-array '(0) :adjustable t :fill-pointer t))
@@ -541,10 +535,8 @@ POP-SIZE, using various functions"
 (defun random-dequeue (queue)
   "Picks a random element in queue and removes and returns it.
 Error generated if the queue is empty."
- ; (break)
   (let ((index (random (length queue))))
     (swap (elt queue index) (elt queue (1- (length queue))))
-  ;  (break)
     (vector-pop queue)))
 
 (defun range (size)
@@ -554,7 +546,7 @@ Error generated if the queue is empty."
 
 (defun build-node (non-terminal)
   "Given a non-terminal node of form (func argc), returns a quote resembling the invocation of func with argc fresh symbols"
-  (apply #'list (first non-terminal) (mapcar (lambda (dum) (gensym)) (make-sequence 'list (second non-terminal)))))
+  (apply #'list (first non-terminal) (make-list (second non-terminal))))
 
 (defun random-terminal ()
   "Returns a random element from the terminal set."
@@ -562,11 +554,20 @@ Error generated if the queue is empty."
 
 (defun random-non-terminal ()
   "Returns a subtree built from random element from the non-terminal set."
-  (build-node (random-elt *nonterminal-set*)))
+  (random-elt *nonterminal-set*))
 
-(defun enqueue-args (node queue)
-  "enqueues the arguments in node invocation list returns nil"
-  (dolist (sym (rest node)) (enqueue sym queue)))
+;;; important hint: to use SETF to change the position of an element in a list
+;;; or a tree, you need to pass into SETF an expression starting with the
+;;; parent.  For example (setf (car parent) val) .... thus you HAVE to have
+;;; access to the parent, not just the child.  This means that to store a
+;;; "position", you have to store away the parent and the arg position of
+;;; child, not the child itself.
+
+(defun next (node)
+  `(cdr ,node))
+
+(defun select (node)
+  `(car (cdr ,node)))
 
 #|
   The simple version of PTC2 you will implement is as follows:
@@ -607,6 +608,8 @@ Error generated if the queue is empty."
   some hints, but you should try to figure it out on your own if you can.
 |#
 
+(defvar *root* nil "Needed in ptc2 because eval cannot access local variables within its environment.")
+
 (defun ptc2 (size)
   "If size=1, just returns a random terminal.  Else builds and
 returns a tree by repeatedly extending the tree horizon with
@@ -616,20 +619,24 @@ Then fills the remaining slots in the horizon with terminals.
 Terminals like X should be added to the tree
 in function form (X) rather than just X."
   (if (equalp size 1) (random-terminal)
-      (let ((q (make-queue))
-	    (root (random-non-terminal))
-	    (count 1)
-	    tmp)
-	(enqueue-args root q)
-	;;;;;;;;;;;;;;;;;TODO
-	(while (>= (+ count (length q)) size) '()
-	  (incf count)
-	  (setf tmp (random-non-terminal))
-	  (setf (random-dequeue q) tmp)
-	  (enqueue-args tmp q))	
-	(while (not (queue-empty-p (print q))) root
-	  (let ((slot (random-dequeue q)))
-	    (setf slot (random-terminal)))))))
+      (let* ((q (make-queue))
+	     (non-term (random-non-terminal))
+	     (argc (second non-term))	    
+	     (count 1)
+	     location)
+	(setf *root* (build-node non-term))
+	(if (>= argc 1) (enqueue (select '*root*) q)) ; queue up arg 1
+	(if (>= argc 2) (enqueue (select (next '*root*)) q)) ; queue up arg 2
+	(while (<= (+ count (length q)) size) '() ; until we reach the desired size
+	  (incf count)	  
+	  (setf location (random-dequeue q)
+		non-term (random-non-terminal))
+	  (setf argc (second non-term))
+	  (eval `(setf ,location ',(build-node non-term))) ; fill in new non-terminal
+	  (if (>= argc 1) (enqueue (select location) q)) ; queue up arg 1
+	  (if (>= argc 2) (enqueue (select (next location)) q))) ; queue up arg 2
+	(while (not (queue-empty-p q)) *root* ; start finalizing by filling in terminals
+	  (eval `(setf ,(random-dequeue q) '(,(random-terminal))))))))
 
 (defun gp-creator (&optional (size-limit *size-limit*))
    "Picks a random number within size-limit, then uses ptc2 to create
@@ -642,14 +649,14 @@ a tree of that size"
   "Returns the number of nodes in tree, including the root"
   (apply #'+ (length (remove-if #'listp tree)) (mapcar #'num-nodes (remove-if-not #'listp tree))))
 
-(defun make-counter ()
+(defun make-counter (&key zero-based)
   "returns a function that returns false until it has been called countdown times"
   (let ((steps (gensym)))
-    (setf steps 0)
+    (setf steps (if zero-based -1 0))
     (lambda (end)
       (equalp (incf steps) end))))
 
-(defun nth-subtree (tree n)
+(defun nth-subtree-parent (tree n)
     "Given a tree, finds the nth node by depth-first search though
 the tree, not including the root node of the tree (0-indexed). If the
 nth node is NODE, let the parent node of NODE is PARENT,
@@ -661,19 +668,7 @@ p
 If n is bigger than the number of nodes in the tree
  (not including the root), then we return n - nodes_in_tree
  (except for root)."
-  (let ((counter (make-counter)))
-    (labels ((recurse (root)
-	       (if (funcall counter n) (return-from nth-subtree root))
-	       (mapcar (lambda (subtree)
-			 (if (listp subtree)
-			     (recurse subtree)
-			     (if (funcall counter n)
-				 (return-from nth-subtree subtree))))
-		       (rest root))))
-	     (recurse tree))))
-
-(defun nth-subtree-parent (tree n)
-  ;;; this is best described with an example:
+ ;;; this is best described with an example:
   ;    (dotimes (x 12)
   ;           (print (nth-subtree-parent
   ;                      '(a (b c) (d e (f (g h i j)) k))
@@ -692,30 +687,27 @@ If n is bigger than the number of nodes in the tree
   ;0
   ;1
   ;NIL
-
-    ;;; IMPLEMENT ME
-  )
+    (let ((counter (make-counter :zero-based t))
+	  (excess (- n (- (num-nodes tree) 1))))
+      (if (>= excess 0) (return-from nth-subtree-parent excess))
+      (labels ((recurse (node)
+		 (let ((children (rest node)))
+		   (dotimes (i (length children))
+		     (let ((subtree (elt children i)))
+		       (if (funcall counter n) (return-from nth-subtree-parent (list node i))
+			   (if (listp subtree) (recurse subtree))))))))
+	(recurse tree))))
 
 (defparameter *mutation-size-limit* 10)  
 
 (defun random-subtree (ind)
   "Returns a random strict subtree (cannot be root) of the given individual"
-  (subtree ind (random (num-nodes ind))))
+  `(nth-subtree-parent ,ind (random (num-nodes ,ind))))
 
 (defun max-depth (root)
   "given a tree, calculates the maximum depth of the tree where (max-depth (a))=0"
   (apply #'max (mapcar (lambda (node) (if (listp node) (1+ (max-depth node)) 1))
 		       (rest root))))
-
-;(defun depth (root targetNode)
-;   "Given a tree and a node within that tree, calculates the depth of the node within the tree,
-; where (depth root root) -> 0"
-;   (labels ((recurse (subtree level)
-; 	     (mapcar (lambda (node)
-; 		       (if (equalp node targetNode) (return-from depth level)
-; 			   (if (listp node) (recurse node (1+ level)))))
-; 		     (rest subtree))))
-;     (recurse root 0)))
 
 (defun depth (root targetNode)
   "Given a tree and a node within that tree, calculates the depth of the node within the tree,
@@ -734,8 +726,8 @@ and replaces it with a new tree, perhaps restricting its size"
       (setf (random-subtree ind) (ptc2 mutate-size-limit))
       (let* ((full-height (max-depth ind))
 	     (n (random (num-nodes ind)))
-	     (new-subtree-depth (- max-size (depth ind (subtree ind n)))))
-	     (setf (subtree ind n) (ptc2 new-subtree-depth)))))
+	     (new-subtree-depth (- max-size (depth ind (nth-subtree-parent ind n)))))
+	     (setf (nth-subtree-parent ind n) (ptc2 new-subtree-depth)))))
 
 (defun gp-modifier (ind1 ind2)
   "Flips a coin.  If it's heads, then ind1 and ind2 are
