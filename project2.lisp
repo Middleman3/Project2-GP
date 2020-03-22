@@ -492,7 +492,7 @@ POP-SIZE, using various functions"
   ;;; the following functions (among others)
   ;;;
   ;;; FUNCALL FORMAT MAPCAR LAMBDA APPLY
-  (funcall setup :record nil)
+  (funcall setup)
   (let* ((population (generate-list pop-size creator t))
 	 (fitnesses (mapcar evaluator population))
 	  chosen offspring bestIndex (maxFitness 0) (deltaFitness 0) (i 0)) ;<for selection 1>
@@ -924,7 +924,6 @@ returning most-positive-fixnum as the output of that expression."
 
 (defparameter *map* (make-map *map-strs*) "The ant's map")
 
-
 (defun direction-to-arrow (dir)
   "Returns a character which represents a given direction -- might
 be useful for showing the movement along a path perhaps..."
@@ -968,7 +967,6 @@ trail of spaces on the map for example.  Returns NIL."
 			((null v) #\#)
 			(t v))))))))
 
-
 ;; The four directions.  For relative direction, you might
 ;; assume that the ant always PERCEIVES things as if it were
 ;; facing north.
@@ -995,13 +993,21 @@ direction from the given y position.  Toroidal."
 	      (t (+ ,y-pos (- ,steps) *map-height*)))       ;; n
 	*map-height*))
 
+(defun on-map-p (x y)
+  "Returns true if a x y is a coordinate on the map"
+  (and (betweenp 0 x (length (first (*map-strs-copy*))))
+	     (betweenp 0 y (length (*map-strs-copy*))))
+  
 (defun foodp ()
   "Checks to see if there is food 1 space in cur-direction of current location"
   (let* ((num (if (>= *current-ant-dir* 2) -1 1))
 	 (coords (if (evenp *current-ant-dir*)
 		     (list (+ *current-x-pos* num) *current-y-pos*)
-		     (list (*current-x-pos* (+ num *current-y-pos*))))))
-    (char-equal (elt (elt *map-strs-copy* (second coords)) (first coords)) #\#)))
+		     (list *current-x-pos* (+ num *current-y-pos*)))))
+    (if (not (apply #'on-map-p coords)) (return-from foodp nil)
+	(char-equal (elt (elt *map-strs-copy* (second coords)) (first coords)) #\#))))
+
+  
 		     
 ;;; the function set you have to implement
 (defmacro if-food-ahead (then else)
