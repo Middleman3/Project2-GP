@@ -680,7 +680,7 @@ a tree of that size"
 
 ;;; GP TREE MODIFICATION CODE
 
-(defun num-nodes (tree)
+(defun num-nodes (tree &optional (predicate #'listp))
   "Returns the number of nodes in tree, including the root"
   (apply #'+ (length (remove-if #'listp tree)) (mapcar #'num-nodes (remove-if-not #'listp tree))))
 
@@ -779,8 +779,8 @@ and replaces it with a new tree, perhaps restricting its size"
       (setf (random-subtree ind) (gp-creator mutate-size-limit))
       (let* ((full-height (max-depth ind))
 	     (n (random (num-nodes ind)))
-	     (new-subtree-depth (- max-size (depth ind (subtree ind n)))))
-	     (setf (nth-subtree-parent ind n) (ptc2 new-subtree-depth)))))
+	     (new-subtree-depth (- max-size (depth ind (nth-subtree-parent ind n)))))
+	(eval `(setf ,(subtree ind n) ',(ptc2 new-subtree-depth))))))
 
 (defun gp-modifier (ind1 ind2)
   "Flips a coin.  If it's heads, then ind1 and ind2 are
