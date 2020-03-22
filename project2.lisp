@@ -80,6 +80,9 @@ Information on compiling code and doing compiler optimizations can be found in t
 
 (defparameter *x* nil) ;; to be set in gp-evaluator
 
+
+(defparameter *is-numeric* nil)
+
 (defparameter *map-str-copy* '())
 (defparameter *map-strs* '(
 ".###............................"
@@ -137,14 +140,14 @@ Information on compiling code and doing compiler optimizations can be found in t
 (defun max-ones (vector)
   (let ((count 0))
     (dolist (element vector)
-      (if (= element 1)
+      (if element
 	  (setf count (+ count 1))))
     (return-from max-ones count)))
 
 (defun trap (vector)
   (let ((count 0))
     (dolist (element vector)
-      (if (= element 0)
+      (if (not element)
 	  (setf count (+ count 1))))
 
     (if (= count 0)
@@ -155,7 +158,7 @@ Information on compiling code and doing compiler optimizations can be found in t
   (let ((count 0) (run T))
     (dolist (element vector)
       (if run
-	  (if (/= element 0)
+	  (if element
 	      (setf count (+ count 1))
 	      (setf run nil))))
     (return-from leading-ones count)))
@@ -163,7 +166,7 @@ Information on compiling code and doing compiler optimizations can be found in t
 (defun leading-ones-blocks (vector b)
   (let ((count 0) (ones-count 0))
     (dolist (element vector)
-      (if (/= element 0)
+      (if element
 	  (progn
 	    (setf ones-count (+ ones-count 1))
 	    (if (= ones-count b)
@@ -173,6 +176,7 @@ Information on compiling code and doing compiler optimizations can be found in t
     (return-from leading-ones-blocks count)))
 
 (defparameter *boolean-fitness* #'max-ones)
+(defparameter *float-fitness* #'max-ones)
 
 ;;; Useful Functions and Macros
 
@@ -297,10 +301,10 @@ given allele in a child will mutate.  Mutation simply flips the bit of the allel
     (uniform-crossover new1 new2)
     (list (mutate-boolean-vector new1) (mutate-boolean-vector new2))))
 
-(defun boolean-vector-evaluator (ind1 &key (fitness-function *boolean-fitness*))
+(defun boolean-vector-evaluator (ind1)
   "Evaluates an individual, which must be a boolean-vector, and returns
 its fitness."
-    (funcall (fitness-function ind1)))
+  (funcall *boolean-fitness* ind1))
 
 (defun boolean-vector-sum-setup (&key debug crossProb mutateProb mutateVar tourny min max length alpha dynamic record)
   "Does nothing.  Perhaps you might use this function to set
@@ -403,12 +407,10 @@ given allele in a child will mutate.  Mutation does gaussian convolution on the 
     (gaussian-convolution new2)
     (list new1 new2)))
 
-(defun float-vector-sum-evaluator (ind1)
+(defun float-vector-sum-evaluator (ind1 &key (fitness-function *float-fitness*))
   "Evaluates an individual, which must be a floating point vector, and returns
 its fitness."
-
-    ;;; IMPLEMENT ME
-)
+  (funcall fitness-function ind1))
 
 (defun float-vector-sum-setup (&key debug crossProb mutateProb mutateVar tourny min max length alpha dynamic record)
   (if debug (setf *debug* debug))
@@ -471,14 +473,17 @@ POP-SIZE, using various functions"
 				       1)))
       
       ; get some statistics // c-5 = list of quantity of values >5 per individual                 
-      (let* ((c-5 (mapcar #'list-length (mapcar (lambda (ind) (remove-if (lambda (val) (> 5 val)) ind)) population))))	     
+      (if *is-numeric*
+	  (let* ((c-5 (mapcar #'list-length (mapcar (lambda (ind) (remove-if (lambda (val) (> 5 val))
+									     ind))
+						    population))))	     
 
-      ; rank individuals            
-        (if *debug*
-            (progn (format t "~%Generation ~D: ~%Delta fitness = ~F~%Mutation Rate = ~F~%Count of 5+:~%0=~D  1=~D  2=~D  3=~D  4=~D  5=~D  6=~D  7=~D~%"
-                           gen deltaFitness mutate-prob (count 0 c-5) (count 1 c-5) (count 2 c-5) (count 3 c-5) (count 4 c-5) (count 5 c-5)
-			   (count 6 c-5) (count 7 c-5))
-                   (funcall printer population fitnesses))))
+					; rank individuals            
+	    (if *debug*
+		(progn (format t "~%Generation ~D: ~%Delta fitness = ~F~%Mutation Rate = ~F~%Count of 5+:~%0=~D  1=~D  2=~D  3=~D  4=~D  5=~D  6=~D  7=~D~%"
+			       gen deltaFitness mutate-prob (count 0 c-5) (count 1 c-5) (count 2 c-5) (count 3 c-5) (count 4 c-5) (count 5 c-5)
+			       (count 6 c-5) (count 7 c-5))
+		       (funcall printer population fitnesses)))))
       
       ; #| SELECTION 1 
       ; choose half the population TWEAK ME!!!!!!!!!!
@@ -642,6 +647,7 @@ in function form (X) rather than just X."
 a tree of that size"
   (ptc2 (1+ (random size-limit))))
 
+
 ;;; GP TREE MODIFICATION CODE
 
 (defun num-nodes (tree)
@@ -732,7 +738,7 @@ and replaces it with a new tree, perhaps restricting its size"
   "Flips a coin.  If it's heads, then ind1 and ind2 are
 crossed over using subtree crossover.  If it's tails, then
 ind1 and ind2 are each mutated using subtree mutation, where
-the size of the newly-generated subtrees is pickedc at random
+the size of the newly-generated subtrees is picked at random
 from 1 to 10 inclusive.  Doesn't damage ind1 or ind2.  Returns
 the two modified versions as a list."
  (if (random?)
@@ -876,14 +882,14 @@ returning most-positive-fixnum as the output of that expression."
 
 ;;; some useful functions for you
 
-(defun make-map (lis)                                                                               
-  "Makes a map out of a string-list such as *MAP-STRS*"                                             
+(defun make-map (lis)
+  "Makes a map out of a string-list such as *MAP-STRS*"
   (let ((map (make-array (list (length (first lis)) (length lis)))))
     (dotimes (y (length lis) map)
       (dotimes (x (length (elt lis y)))
-        (setf (aref map x y)
-	       (cond ((equalp #\# (elt (elt lis y) x)) nil)
-		     (t t)))))))
+	(setf (aref map x y)
+	      (cond ((equalp #\# (elt (elt lis y) x)) nil)
+		    (t t)))))))
 
 (defparameter *map* (make-map *map-strs*) "The ant's map")
 
@@ -911,7 +917,7 @@ any type."
 			      `(:fill-pointer ,(fill-pointer array))
 			    nil))))
     (dotimes (x (array-total-size array) new-array)
-      (setf (row-major-aref new-array x)
+      (setf (row-major-elt new-array x)
 	    (funcall function (row-major-aref array x))))))
 
 (defun print-map (map)
@@ -1045,8 +1051,8 @@ where the ant had gone."
   (setq *terminal-set* '(left right move))
   (setq *map* (make-map *map-strs*))
   (setq *current-move* 0)
-  (setq *eaten-pellets* 0))
-
+  (setq *eaten-pellets* 0)
+  )
 
 ;; you'll need to implement this as well
 
@@ -1054,12 +1060,10 @@ where the ant had gone."
   "Evaluates an individual by putting it in a fresh map and letting it run
 for *num-moves* moves.  The fitness is the number of pellets eaten -- thus
 more pellets, higher (better) fitness."
-  (setf *map-str-copy* (copy-sequence *map-strs*))
+  (setf *map-str-copy* (copy-seq *map-strs*))
   (setf *eaten-pellets* 0)
   (dotimes (number *num-moves* *eaten-pellets*)
-    (eval (ind))
-    )
-  )
+    (eval ind)))
 
 ;; you might choose to write your own printer, which prints out the best
 ;; individual's map.  But it's not required.
@@ -1073,3 +1077,4 @@ more pellets, higher (better) fitness."
         :evaluator #'gp-artificial-ant-evaluator
 	:printer #'simple-printer)
 |#
+
