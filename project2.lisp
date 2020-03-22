@@ -780,7 +780,8 @@ and replaces it with a new tree, perhaps restricting its size"
       (let* ((full-height (max-depth ind))
 	     (n (random (num-nodes ind)))
 	     (new-subtree-depth (- max-size (depth ind (nth-subtree-parent ind n)))))
-	(eval `(setf ,(subtree ind n) ',(ptc2 new-subtree-depth))))))
+	(eval `(setf ,(subtree ind n) ',(ptc2 new-subtree-depth)))
+	ind)))
 
 (defun gp-modifier (ind1 ind2)
   "Flips a coin.  If it's heads, then ind1 and ind2 are
@@ -791,7 +792,7 @@ from 1 to 10 inclusive.  Doesn't damage ind1 or ind2.  Returns
 the two modified versions as a list."
  (if (random?)
   (progn
-    (swap (random-subtree ind1) (random-subtree ind2))
+    (eval `(swap ,(random-subtree ind1) ,(random-subtree ind2)))
     (list ind1 ind2))
   (list (subtree-mutation ind1) (subtree-mutation ind2))))
 
