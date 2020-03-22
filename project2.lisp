@@ -131,6 +131,7 @@ Information on compiling code and doing compiler optimizations can be found in t
 (defparameter *current-x-pos* 0 "The current X position of the ant")
 (defparameter *current-y-pos* 0 "The current Y position of the ant")
 (defparameter *current-ant-dir* *e* "The current direction the ant is facing")
+;; 0 - right :: 1 - down :: 2 - left :: 3 - up
 (defparameter *eaten-pellets* 0 "How many pellets the ant has eaten so far")
 (defparameter *map-strs-copy* (copy-seq *map-strs*))
 
@@ -1009,25 +1010,20 @@ where the ant had gone."
 
 
 (if (<= *current-move* *num-moves*)
-  (progn
-  (setf *current-move* (+ *current-move* 1))
-  (if (= *current-ant-dir* 0)
     (progn
-    (setf *current-y-pos* (- *current-y-pos* 1))))
-  (if (= *current-ant-dir* 1)
-    (progn
-    (setf *current-y-pos* (+ *current-y-pos* 1))))
-  (if (= *current-ant-dir* 2)
-    (progn
-    (setf *current-x-pos* (+ *current-x-pos* 1))))
-  (if (= *current-ant-dir* 3)
-    (progn
-    (setf *current-x-pos* (- *current-x-pos* 1))))))
-(if (equal "#" (subseq (elt *map-strs-copy* *current-x-pos*) *current-y-pos* (+ (- (length (elt *map-strs-copy* *current-x-pos*)) (length (subseq (elt *map-strs-copy* *current-x-pos*) *current-y-pos*))) 1)))
-    (progn
-    (setf *map-str-copy* (substitute (concatenate 'string (subseq (elt *map-strs-copy* *current-x-pos*) 0 *current-y-pos*) (replace (subseq (elt *map-strs-copy* *current-x-pos*) *current-y-pos* (+ *current-y-pos* 1)) "-") (subseq (elt *map-strs-copy* *current-x-pos*) (+ *current-y-pos* 1) (- (length (elt *map-strs-copy* *current-x-pos*)) 1))) (elt *map-strs-copy* *current-x-pos*) *map-strs-copy*))
-    (setf *eaten-pellets* (+ *eaten-pellets* 1)))))
+      ;; 0 - right :: 1 - down :: 2 - left :: 3 - up
+    (setf *current-move* (+ *current-move* 1))
+    (setf *eaten-pellets* (+ *eaten-pellets* 1))
+    (if (= *current-ant-dir* 0)
+	(incf *current-x-pos*))
+    (if (= *current-ant-dir* 1)
+	(incf *current-y-pos*))
+    (if (= *current-ant-dir* 2)
+	(decf *current-x-pos*))
+    (if (= *current-ant-dir* 3)
+	(decf *current-y-pos*))
 
+    (setf (elt (elt *map-strs-copy* *current-y-pos*) *current-x-pos*) #\-))))
 
 (defun left ()
   "Increments the move count, and turns the ant left"
@@ -1038,23 +1034,24 @@ where the ant had gone."
     (if (= *current-ant-dir* 0)
       (setf *current-ant-dir* 3)
       (if (= *current-ant-dir* 1)
-        (setf *current-ant-dir* 2)
+        (setf *current-ant-dir* 0)
         (if (= *current-ant-dir* 2)
-          (setf *current-ant-dir* 0)
+          (setf *current-ant-dir* 1)
           (if (= *current-ant-dir* 3)
-            (setf *current-ant-dir* 1))))))))
+            (setf *current-ant-dir* 2))))))))
 
 (defun right ()
   "Increments the move count, and turns the ant right"
+  ;; 0 - right :: 1 - down :: 2 - left :: 3 - up
   (if (<= *current-move* *num-moves*)
     (progn
     (setf *current-move* (+ *current-move* 1))
     (if (= *current-ant-dir* 0)
-      (setf *current-ant-dir* 2)
+	(setf *current-ant-dir* 1)
       (if (= *current-ant-dir* 1)
-        (setf *current-ant-dir* 3)
+	  (setf *current-ant-dir* 2)
         (if (= *current-ant-dir* 2)
-          (setf *current-ant-dir* 1)
+	    (setf *current-ant-dir* 3)
           (if (= *current-ant-dir* 3)
             (setf *current-ant-dir* 0))))))))
 
