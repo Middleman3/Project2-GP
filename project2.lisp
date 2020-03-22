@@ -753,9 +753,9 @@ If n is bigger than the number of nodes in the tree
 
 (defparameter *mutation-size-limit* 10)
 
-(defun random-subtree (ind)
+(defun random-subtree (ind name)
   "Returns a random strict subtree (cannot be root) of the given individual"
-  (subtree ind (random (num-nodes ind))))
+  (subtree ind (random (num-nodes ind)) name))
 
 (defun max-depth (root)
   "given a tree, calculates the maximum depth of the tree where (max-depth (a))=0"
@@ -780,7 +780,7 @@ and replaces it with a new tree, perhaps restricting its size"
       (let* ((full-height (max-depth ind))
 	     (n (random (num-nodes ind)))
 	     (new-subtree-depth (- max-size (depth ind (nth-subtree-parent ind n)))))
-	(eval `(setf ,(subtree ind n) ',(ptc2 new-subtree-depth)))
+	(eval `(setf ,(subtree ind n 'ind) ',(ptc2 new-subtree-depth)))
 	ind)))
 
 (defun gp-modifier (ind1 ind2)
@@ -792,7 +792,7 @@ from 1 to 10 inclusive.  Doesn't damage ind1 or ind2.  Returns
 the two modified versions as a list."
  (if (random?)
   (progn
-    (eval `(swap ,(random-subtree ind1) ,(random-subtree ind2)))
+    (eval `(swap ,(random-subtree ind1 'ind) ,(random-subtree ind2 'ind)))
     (list ind1 ind2))
   (list (subtree-mutation ind1) (subtree-mutation ind2))))
 
