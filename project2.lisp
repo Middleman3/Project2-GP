@@ -737,6 +737,8 @@ If n is bigger than the number of nodes in the tree
   "generates an s-expression of recursively cdring name n times"
   (if (> n 0) (next (next-times (1- n) name)) `,name))
 
+(defvar *ind* nil)
+
 (defun subtree (root n &optional (name 'root))
   "Same as nth-subtree-node, but returns an s-expression from the root instead of the parent"
   (let ((counter (make-counter :zero-based t))
@@ -771,17 +773,23 @@ If n is bigger than the number of nodes in the tree
  			   (if (listp node) (recurse node (1+ level)))))
  		     (rest subtree))))
     (recurse root 0)))
- 
+
+(defvar *ind* nil)
+
 (defun subtree-mutation (ind &key (restrict-size *restrict-size*) (max-size *size-limit*) (mutate-size-limit *mutation-size-limit*))
   "Randomly selects a subtree of ind, determines its maximum depth,
 and replaces it with a new tree, perhaps restricting its size"
+  (setf *ind* ind)
   (if (not restrict-size)
-      (setf (random-subtree ind) (gp-creator mutate-size-limit))
+      (eval `(setf ,(random-subtree *ind* '*ind*) ',(gp-creator mutate-size-limit)))
       (let* ((full-height (max-depth ind))
 	     (n (random (num-nodes ind)))
 	     (new-subtree-depth (- max-size (depth ind (nth-subtree-parent ind n)))))
-	(eval `(setf ,(subtree ind n 'ind) ',(ptc2 new-subtree-depth)))
-	ind)))
+	(eval `(setf ,(subtree *ind* n '*ind*) ',(ptc2 new-subtree-depth)))))
+  ind)
+
+(defvar *ind1* nil)
+(defvar *ind2* nil)
 
 (defun gp-modifier (ind1 ind2)
   "Flips a coin.  If it's heads, then ind1 and ind2 are
@@ -790,11 +798,13 @@ ind1 and ind2 are each mutated using subtree mutation, where
 the size of the newly-generated subtrees is picked at random
 from 1 to 10 inclusive.  Doesn't damage ind1 or ind2.  Returns
 the two modified versions as a list."
- (if (random?)
-  (progn
-    (eval `(swap ,(random-subtree ind1 'ind) ,(random-subtree ind2 'ind)))
-    (list ind1 ind2))
-  (list (subtree-mutation ind1) (subtree-mutation ind2))))
+  (setf *ind1* ind1)
+  (setf *ind2* ind2)
+  (if (random?)
+      (progn
+	(eval `(swap ,(random-subtree *ind1* '*ind1*) ,(random-subtree *ind2* '*ind2*)))
+	(list *ind1* *ind2*))
+      (list (subtree-mutation *ind1*) (subtree-mutation *ind2*))))
 
 ;;; SYMBOLIC REGRESSION
 ;;; This problem domain is similar, more or less, to the GP example in
