@@ -680,7 +680,7 @@ a tree of that size"
 
 ;;; GP TREE MODIFICATION CODE
 
-(defun num-nodes (tree)
+(defun num-nodes (tree &optional (predicate #'listp))
   "Returns the number of nodes in tree, including the root"
   (apply #'+ (length (remove-if #'listp tree)) (mapcar #'num-nodes (remove-if-not #'listp tree))))
 
@@ -740,7 +740,7 @@ If n is bigger than the number of nodes in the tree
 (defun subtree (root n &optional (name 'root))
   "Same as nth-subtree-node, but returns an s-expression from the root instead of the parent"
   (let ((counter (make-counter :zero-based t))
-	  (excess (- n (- (num-nodes tree) 1))))
+	  (excess (- n (- (num-nodes root) 1))))
       (if (>= excess 0) (return-from subtree excess))
       (labels ((recurse (node accessor)
 		 (let ((children (rest node)))
@@ -749,7 +749,7 @@ If n is bigger than the number of nodes in the tree
 			   (child-accessor `(car ,(next-times (1+ i) accessor))))
 		       (if (funcall counter n) (return-from subtree child-accessor)
 			   (if (listp subtree) (recurse subtree child-accessor))))))))
-	(recurse tree name))))
+	(recurse root name))))
 
 (defparameter *mutation-size-limit* 10)
 
@@ -779,8 +779,8 @@ and replaces it with a new tree, perhaps restricting its size"
       (setf (random-subtree ind) (gp-creator mutate-size-limit))
       (let* ((full-height (max-depth ind))
 	     (n (random (num-nodes ind)))
-	     (new-subtree-depth (- max-size (depth ind (subtree ind n)))))
-	     (setf (nth-subtree-parent ind n) (ptc2 new-subtree-depth)))))
+	     (new-subtree-depth (- max-size (depth ind (nth-subtree-parent ind n)))))
+	(eval `(setf ,(subtree ind n) ',(ptc2 new-subtree-depth))))))
 
 (defun gp-modifier (ind1 ind2)
   "Flips a coin.  If it's heads, then ind1 and ind2 are
