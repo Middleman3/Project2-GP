@@ -491,6 +491,7 @@ POP-SIZE, using various functions"
   ;;; the following functions (among others)
   ;;;
   ;;; FUNCALL FORMAT MAPCAR LAMBDA APPLY
+  (setf *num-nodes-memo-table* (make-hash-table :test #'equal))
   (funcall setup)
   (let* ((population (generate-list pop-size creator t))
 	 (fitnesses (mapcar evaluator population))
@@ -688,13 +689,13 @@ a tree of that size"
 
 (defparameter *num-nodes-memo-table* (make-hash-table :test #'equal))
 
+;(let ((query (multiple-value-list (gethash tree *num-nodes-memo-table*))))
+;    (if (and query (second query)) (first query)
+;	(setf (gethash tree *num-nodes-memo-table*)
 (defun num-nodes (tree)
-  "Returns the number of nodes in tree, including the root"
-  (let ((query (multiple-value-list (gethash tree *num-nodes-memo-table*))))
-    (if (and query (second query)) (first query)
-	(setf (gethash tree *num-nodes-memo-table*)
-	      (apply #'+ (length (remove-if #'listp tree))
-		     (mapcar #'num-nodes (remove-if-not #'listp tree)))))))
+  "Returns the number of nodes in tree, including the root. Memoized "  
+  (apply #'+ (length (remove-if #'listp tree))
+	 (mapcar #'num-nodes (remove-if-not #'listp tree))))
 
 (defun nth-subtree-parent (tree n)
     "Given a tree, finds the nth node by depth-first search though
@@ -746,24 +747,25 @@ If n is bigger than the number of nodes in the tree
 
 (defun subtree (root n &optional (name 'root))
   "Same as nth-subtree-node, but returns an s-expression from the root instead of the parent"
-  (let ((counter (make-counter :zero-based t))
-	  (excess (- n (- (num-nodes root) 1))))
-      (if (>= excess 0) (return-from subtree excess))
-      (labels ((recurse (node accessor)
-		 (let ((children (rest node)))
-		   (dotimes (i (length children))
-		     (let ((subtree (elt children i))
-			   (child-accessor `(car ,(next-times (1+ i) accessor))))
-		       (if (funcall counter n) (return-from subtree child-accessor)
-			   (if (listp subtree) (recurse subtree child-accessor))))))))
-	(recurse root name))))
+  (if (= (num-nodes root) 1) name 
+      (let ((counter (make-counter :zero-based t))
+	    (excess (- n (- (num-nodes root) 1))))
+	(if (>= excess 0) (return-from subtree excess))
+	(labels ((recurse (node accessor)
+		   (let ((children (rest node)))
+		     (dotimes (i (length children))
+		       (let ((subtree (elt children i))
+			     (child-accessor `(car ,(next-times (1+ i) accessor))))
+			 (if (funcall counter n) (return-from subtree child-accessor)
+			     (if (listp subtree) (recurse subtree child-accessor))))))))
+	  (recurse root name)))))
 
 (defparameter *mutation-size-limit* 10)
 
 (defun random-subtree (ind name)
   "Returns a random strict subtree (cannot be root) of the given individual"
   (let ((size (num-nodes ind)))
-    (if (= 1 size) `(car (list ,name)) (subtree ind (random (1- (num-nodes ind))) name))))
+    (if (= 1 size) name (subtree ind (random (1- (num-nodes ind))) name))))
 
 (defun max-depth (root)
   "given a tree, calculates the maximum depth of the tree where (max-depth (a))=0"
@@ -787,11 +789,11 @@ If n is bigger than the number of nodes in the tree
 and replaces it with a new tree, perhaps restricting its size"
   (setf *ind* ind)
   (if (not restrict-size)
-      (eval `(setf ,(random-subtree *ind* '*ind*) ',(gp-creator mutate-size-limit)))
+      (eval (print `(setf ,(random-subtree *ind* '*ind*) ',(gp-creator mutate-size-limit))))
       (let* ((full-height (max-depth ind))
 	     (n (random (num-nodes ind)))
 	     (new-subtree-depth (- max-size (depth ind (nth-subtree-parent ind n)))))
-	(eval `(setf ,(subtree *ind* n '*ind*) ',(ptc2 new-subtree-depth)))))
+	(eval (print `(setf ,(subtree *ind* n '*ind*) ',(ptc2 new-subtree-depth))))))
   ind)
 
 (defvar *ind1* nil)
@@ -810,9 +812,11 @@ the two modified versions as a list."
   (if (random?)
       (let ((ind1-accessor (random-subtree *ind1* '*ind1*))
 	    (ind2-accessor (random-subtree *ind2* '*ind2*)))
-	(eval `(setf *swap-tmp* ',ind1-accessor))
-	(eval `(setf ,ind1-accessor ',ind2-accessor))
-	(eval `(setf ,ind2-accessor ',*swap-tmp*))
+	(display 1 "gp-mod: *ind*=~A" *ind*)
+	(eval (print `(setf *swap-tmp* ',ind1-accessor)))
+	(display 1 "gp-mod: *swap-tmp*=~A" *swap-tmp*)
+	(eval (print `(setf ,ind1-accessor ,ind2-accessor)))
+	(eval (print `(setf ,ind2-accessor ,*swap-tmp*)))
 	(list *ind1* *ind2*))
       (list (subtree-mutation *ind1*) (subtree-mutation *ind2*))))
 
