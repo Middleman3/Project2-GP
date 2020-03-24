@@ -652,7 +652,7 @@ plus the number of unfilled slots in the horizon, is >= size.
 Then fills the remaining slots in the horizon with terminals.
 Terminals like X should be added to the tree
 in function form (X) rather than just X."
-  (if (equalp size 1) (random-terminal)
+  (if (equalp size 1) `(,(random-terminal))
       (let* ((q (make-queue))
 	     (non-term (random-non-terminal))
 	     (argc (second non-term))	    
@@ -670,8 +670,7 @@ in function form (X) rather than just X."
 	  (if (>= argc 1) (enqueue (select location) q)) ; queue up arg 1
 	  (if (>= argc 2) (enqueue (select (next location)) q))) ; queue up arg 2
 	(while (not (queue-empty-p q)) *root* ; start finalizing by filling in terminals
-	  (eval `(setf ,(random-dequeue q) '(,(random-terminal))))
-	  ))))
+	  (eval `(setf ,(random-dequeue q) '(,(random-terminal))))))))
 
 (defun gp-creator (&optional (size-limit *size-limit*))
    "Picks a random number within size-limit, then uses ptc2 to create
@@ -680,16 +679,22 @@ a tree of that size"
 
 ;;; GP TREE MODIFICATION CODE
 
-(defun num-nodes (tree &optional (predicate #'listp))
-  "Returns the number of nodes in tree, including the root"
-  (apply #'+ (length (remove-if #'listp tree)) (mapcar #'num-nodes (remove-if-not #'listp tree))))
-
 (defun make-counter (&key zero-based)
-  "returns a function that returns false until it has been called countdown times"
+  "returns a function that returns false until it has been called 'end' times"
   (let ((steps (gensym)))
     (setf steps (if zero-based -1 0))
     (lambda (end)
       (equalp (incf steps) end))))
+
+(defparameter *num-nodes-memo-table* (make-hash-table :test #'equal))
+
+(defun num-nodes (tree)
+  "Returns the number of nodes in tree, including the root"
+  (let ((query (multiple-value-list (gethash tree *num-nodes-memo-table*))))
+    (if (and query (second query)) (first query)
+	(setf (gethash tree *num-nodes-memo-table*)
+	      (apply #'+ (length (remove-if #'listp tree))
+		     (mapcar #'num-nodes (remove-if-not #'listp tree)))))))
 
 (defun nth-subtree-parent (tree n)
     "Given a tree, finds the nth node by depth-first search though
@@ -757,7 +762,8 @@ If n is bigger than the number of nodes in the tree
 
 (defun random-subtree (ind name)
   "Returns a random strict subtree (cannot be root) of the given individual"
-  (subtree ind (random (num-nodes ind)) name))
+  (let ((size (num-nodes ind)))
+    (if (= 1 size) `(car (list ,name)) (subtree ind (random (1- (num-nodes ind))) name))))
 
 (defun max-depth (root)
   "given a tree, calculates the maximum depth of the tree where (max-depth (a))=0"
@@ -790,6 +796,7 @@ and replaces it with a new tree, perhaps restricting its size"
 
 (defvar *ind1* nil)
 (defvar *ind2* nil)
+(defvar *swap-tmp* nil)
 
 (defun gp-modifier (ind1 ind2)
   "Flips a coin.  If it's heads, then ind1 and ind2 are
@@ -801,8 +808,11 @@ the two modified versions as a list."
   (setf *ind1* ind1)
   (setf *ind2* ind2)
   (if (random?)
-      (progn
-	(eval `(swap ,(random-subtree *ind1* '*ind1*) ,(random-subtree *ind2* '*ind2*)))
+      (let ((ind1-accessor (random-subtree *ind1* '*ind1*))
+	    (ind2-accessor (random-subtree *ind2* '*ind2*)))
+	(eval `(setf *swap-tmp* ',ind1-accessor))
+	(eval `(setf ,ind1-accessor ',ind2-accessor))
+	(eval `(setf ,ind2-accessor ',*swap-tmp*))
 	(list *ind1* *ind2*))
       (list (subtree-mutation *ind1*) (subtree-mutation *ind2*))))
 
@@ -865,23 +875,16 @@ large values of Z are low fitness.  Return the final
 individual's fitness.  During evaluation, the expressions
 evaluated may overflow or underflow, or produce NaN.  Handle all
 such math errors by
-returning most-positive-fixnum as the output of that expression."
-  ;;; hint:
-  ;;; (handler-case
-  ;;;  ....
-  ;;;  (error (condition)
-  ;;;     (format t "~%Warning, ~a" condition) most-positive-fixnum))
-
-  ;;; IMPLEMENT ME
-  (break)
-  (let  ((loss 0))
-    (dolist (val *vals*)
-      (setf *x* val)
-      (break)
-      (incf loss (abs (- (eval ind) (poly-to-learn *x*)))))
-    ;;(display "symb-regr-eval sum-error=~D" loss :debug-level 2) 
-    (/ 1 loss)))
-
+returning most-positive-fixnum as the output of that expression."  
+  (handler-case
+      (let  ((loss 0))
+	(dolist (val *vals*)
+	  (setf *x* val)
+	  (incf loss (abs (- (eval ind) (poly-to-learn *x*)))))
+	;;(display "symb-regr-eval sum-error=~D" loss :debug-level 2) 
+	(/ 1 (1+ loss)))
+    (error (condition)
+      (format t "~%Warning, ~a" condition) most-positive-fixnum)))
 
 ;;; Example run
 #|
