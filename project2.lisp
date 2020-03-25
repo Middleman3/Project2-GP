@@ -169,40 +169,45 @@ Information on compiling code and doing compiler optimizations can be found in t
 			 (mapcar (lambda (x) (* x 100)) ind)))))
 
 (defun max-ones (vector)
+  "counts the number of ones in a vector"
   (let ((count 0))
     (dolist (element vector)
       (if element
-	  (setf count (+ count 1))))
+	  (incf count)))
     (return-from max-ones count)))
 
 (defun trap (vector)
+  "counts the number of zeros in the function, unless there are no zeros in which case
+  the fitness of the vector goes to the length of the vector + 1"
   (let ((count 0))
     (dolist (element vector)
       (if (not element)
-	  (setf count (+ count 1))))
+	  (incf count)))
 
     (if (= count 0)
 	(return-from trap (+ (length vector) 1))
 	(return-from trap count))))
 
 (defun leading-ones (vector)
+  "returns the position of the first zero found in the vector"
   (let ((count 0) (run T))
     (dolist (element vector)
       (if run
 	  (if element
-	      (setf count (+ count 1))
+	      (incf count)
 	      (setf run nil))))
     (return-from leading-ones count)))
 
 (defun leading-ones-blocks (vector b)
+  "given a value B, count the number of strings of ones, each b long, until we see a zero"
   (let ((count 0) (ones-count 0))
     (dolist (element vector)
       (if element
 	  (progn
-	    (setf ones-count (+ ones-count 1))
+	    (incf ones-count)
 	    (if (= ones-count b)
 		(progn
-		  (setf count (+ count 1))
+		  (incf count)
 		  (setf ones-count 0))))))
     (return-from leading-ones-blocks count)))
 
@@ -215,13 +220,16 @@ Information on compiling code and doing compiler optimizations can be found in t
   ;(print description)
   (if (<= debug-level *debug-level*) (apply #'format t description args)))
 
-(defmacro swap (elt1 elt2)
+(defun swap (elt1 elt2)
   "Swaps elt1 and elt2, using SETF.  Returns nil."
-  (let ((temp (gensym)))
-    `(let ((,temp ,elt1))
-       (setf ,elt1 ,elt2)
-       (setf ,elt2 ,temp)
-       nil)))
+  ; Jonny code
+  (let* ((temp (copy-tree elt1)))
+       (setf elt1 elt2)
+       (setf elt2 temp)
+       (print elt1)
+       (print elt2)
+       ))
+      
 
 (defmacro while (test return-value &body body)
   "Repeatedly executes body as long as test returns true.
@@ -244,6 +252,8 @@ are permitted (FUNCTION is repeatedly called until a unique
 new slot is created).  EQUALP is the test used for duplicates."
   (let (bag)
     (while (< (length bag) num) bag
+      (print bag)
+      ;(break)
       (let ((candidate (funcall function)))
 	(unless (and no-duplicates
 		     (member candidate bag :test #'equalp))
@@ -401,9 +411,9 @@ and the floating-point ranges involved, etc.  I dunno."
   "Generates a random number under a gaussian distribution with the given mean and variance (using the Box-Muller-Marsaglia method)"
   (let (x y (w 0))
     (while (not (and (< 0 w) (< w 1))) '()
-           (setf x (- (random 2.0) 1.0))
-           (setf y (- (random 2.0) 1.0))
-           (setf w (+ (* x x) (* y y))))
+      (setf x (- (random 2.0) 1.0))
+      (setf y (- (random 2.0) 1.0))
+      (setf w (+ (* x x) (* y y))))
     (+ mean (* x (sqrt variance) (sqrt (* -2 (/ (log w) w)))))))
 
 (defun gaussian-convolution (ind)
@@ -417,7 +427,7 @@ and the floating-point ranges involved, etc.  I dunno."
       (if (random? *float-mutation-probability*)
 	  (progn
 	    (while out-of-bounds nil
-	      ;(format t "~%~%E=~F  N=~F~%~F < ~F < ~F~%~%" (elt ind i) n *float-min* (+ (elt ind i) n) *float-max*))
+					;(format t "~%~%E=~F  N=~F~%~F < ~F < ~F~%~%" (elt ind i) n *float-min* (+ (elt ind i) n) *float-max*))
 	      (setf n (gaussian-random mean *float-mutation-variance*))
 	      (if (and (> (+ (elt ind i) n) *float-min*) (< (+ (elt ind i) n) *float-max*))
 		  (setf out-of-bounds nil)))
@@ -692,10 +702,22 @@ a tree of that size"
 ;(let ((query (multiple-value-list (gethash tree *num-nodes-memo-table*))))
 ;    (if (and query (second query)) (first query)
 ;	(setf (gethash tree *num-nodes-memo-table*)
+
+(defun flatten (obj)
+  ; jonny code - just used this function to prove to myself that this was not the only issue
+  ; we need to rewrite this because this was taken from online because it does not use stack
+  (do* ((result (list obj))
+        (node result))
+       ((null node) (delete nil result))
+    (cond ((consp (car node))
+           (when (cdar node) (push (cdar node) (cdr node)))
+           (setf (car node) (caar node)))
+          (t (setf node (cdr node))))))
+
+
 (defun num-nodes (tree)
-  "Returns the number of nodes in tree, including the root. Memoized "  
-  (apply #'+ (length (remove-if #'listp tree))
-	 (mapcar #'num-nodes (remove-if-not #'listp tree))))
+  "Returns the number of nodes in tree, including the root. Memoized "
+  (length (flatten tree)))
 
 (defun nth-subtree-parent (tree n)
     "Given a tree, finds the nth node by depth-first search though
@@ -800,6 +822,38 @@ and replaces it with a new tree, perhaps restricting its size"
 (defvar *ind2* nil)
 (defvar *swap-tmp* nil)
 
+(defun contains-list (lis)
+    (dolist (elem lis)
+      (if (listp elem)
+	  (return-from contains-list t)
+	  )
+      )
+    (return-from contains-list nil)
+    )
+
+
+(defun remove-from-tree (remove-elem tree) ;; CURRENTLY, IT MODIFIES THE LIST IN ADDITION TO REMOVING A SUBLIST - SHOULDN'T DO THAT
+  ; jonny code
+  (let ((new-tree nil))
+    (dolist (elem tree)
+      (if (and (not (equal remove-elem elem)) (not (listp elem))) ;; for every element not a list
+					; append element
+	  (setf new-tree (append new-tree (list elem)))
+	  )
+      (if (and (not (equal remove-elem elem)) (listp elem) (not (contains-list elem))) ;; for every element that is a list and does not contain a list
+					; cons element
+	  (setf new-tree (cons new-tree elem))
+	  )
+      (if (and (not (equal remove-elem elem)) (listp elem) (contains-list elem)) ;; for every element that is a list and contains a list
+	  (if (and (listp elem) (not (eq elem remove-elem)))
+	      (setf new-tree (cons new-tree (remove-from-tree remove-elem elem)))
+		)
+	  )
+      )
+    (return-from remove-from-tree new-tree)
+    )
+  )
+
 (defun gp-modifier (ind1 ind2)
   "Flips a coin.  If it's heads, then ind1 and ind2 are
 crossed over using subtree crossover.  If it's tails, then
@@ -807,19 +861,19 @@ ind1 and ind2 are each mutated using subtree mutation, where
 the size of the newly-generated subtrees is picked at random
 from 1 to 10 inclusive.  Doesn't damage ind1 or ind2.  Returns
 the two modified versions as a list."
+  ; jonny code
   (setf *ind1* ind1)
   (setf *ind2* ind2)
   (if (random?)
-      (let ((ind1-accessor (random-subtree *ind1* '*ind1*))
-	    (ind2-accessor (random-subtree *ind2* '*ind2*)))
-	(display 1 "gp-mod: *ind*=~A" *ind*)
-	(eval (print `(setf *swap-tmp* ',ind1-accessor)))
-	(display 1 "gp-mod: *swap-tmp*=~A" *swap-tmp*)
-	(eval (print `(setf ,ind1-accessor ,ind2-accessor)))
-	(eval (print `(setf ,ind2-accessor ,*swap-tmp*)))
-	(list *ind1* *ind2*))
-      (list (subtree-mutation *ind1*) (subtree-mutation *ind2*))))
-
+      (let ((ind1-accessor (eval (random-subtree *ind1* '*ind1*)))
+	    (ind2-accessor (eval (random-subtree *ind2* '*ind2*))))
+	(setf *ind1* (remove-from-tree ind1-accessor *ind1*))
+	(setf *ind2* (remove-from-tree ind2-accessor *ind2*))
+	(setf *ind1* (cons *ind1* ind2-accessor))
+	(setf *ind2* (cons *ind2* ind1-accessor))
+	))
+  (list *ind1* *ind2*)
+)
 ;;; SYMBOLIC REGRESSION
 ;;; This problem domain is similar, more or less, to the GP example in
 ;;; the lecture notes.  Your goal is to make a symbolic expression which
@@ -1068,7 +1122,6 @@ where the ant had gone."
 
 (if (<= *current-move* *num-moves*)
     (progn
-      
     (setf *current-move* (+ *current-move* 1))
     (setf *eaten-pellets* (+ *eaten-pellets* 1))
     (if (= *current-ant-dir* 1)
@@ -1086,10 +1139,12 @@ where the ant had gone."
 	     (setf (elt (elt *map-strs-copy* *current-y-pos*) *current-x-pos*) -move))))))
 
 (defun left ()
+  "uses a modulo operation to rotate the ant direction to the left."
   (if (<= *current-move* *num-moves*)
       (setf *current-ant-dir* (mod (1- *current-ant-dir*) 4))))
 
 (defun right ()
+  "uses a modulo operation to rotate the anti direction to the right."
   (if (<= *current-move* *num-moves*)
       (setf *current-ant-dir* (mod (1+ *current-ant-dir*) 4))))
 
