@@ -1,0 +1,7 @@
+;; This buffer is for text that is not saved, and for Lisp evaluation.
+;; To create a file, visit it with C-x C-f and enter text in its buffer.
+
+ind = (EXP (SIN (+ (+ (SIN (X)) (X)) (- (* (- (X) (% (X) (X))) (- (X) (X))) (X)))))
+swaptmp = (CAR (CDR *IND1*))
+car cdr ind = (SIN (+ (+ (SIN (X)) (X)) (- (* (- (X) (% (X) (X))) (- (X) (X))) (X))))
+eval swaptmp = (x)
