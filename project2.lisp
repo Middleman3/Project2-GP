@@ -654,26 +654,31 @@ plus the number of unfilled slots in the horizon, is >= size.
 Then fills the remaining slots in the horizon with terminals.
 Terminals like X should be added to the tree
 in function form (X) rather than just X."
-  (if (equalp size 1) `(,(random-terminal)) ; return (x)
-      (let* ((q (make-queue))
-	     (non-term (random-non-terminal))
-	     (argc (second non-term)) 
-	     (count 1)
-	     location)
-	(setf *root* (build-node non-term))
-	(if (>= argc 1) (enqueue (select '*root*) q)) ; queue up arg 1
-	(if (>= argc 2) (enqueue (select (next '*root*)) q)) ; queue up arg 2
-	(while (<= (+ count (length q)) size) '() ; until we reach the desired size
-	  (incf count)	  
-	  (setf location (random-dequeue q)
-		non-term (random-non-terminal))
-	  (setf argc (second non-term))
-	  (eval `(setf ,location ',(build-node non-term))) ; fill in new non-terminal
-	  (if (>= argc 1) (enqueue (select location) q)) ; queue up arg 1
-	  (if (>= argc 2) (enqueue (select (next location)) q))) ; queue up arg 2
-	(while (not (queue-empty-p q)) *root* ; start finalizing by filling in terminals
-	  (eval `(setf ,(random-dequeue q) '(,(random-terminal))))))))
-
+  (handler-case 
+      (if (equalp size 1) `(,(random-terminal)) ; return (x)
+	  (let* ((q (make-queue))
+		 (non-term (random-non-terminal))
+		 (argc (second non-term)) 
+		 (count 1)
+		 location)
+	    (setf *root* (build-node non-term))
+	    (if (>= argc 1) (enqueue (select '*root*) q)) ; queue up arg 1
+	    (if (>= argc 2) (enqueue (select (next '*root*)) q)) ; queue up arg 2
+	    (while (<= (+ count (length q)) size) '() ; until we reach the desired size
+	      (incf count)	  
+	      (setf location (random-dequeue q)
+		    non-term (random-non-terminal))
+	      (setf argc (second non-term))
+	      (eval `(setf ,location ',(build-node non-term))) ; fill in new non-terminal
+	      (if (>= argc 1) (enqueue (select location) q)) ; queue up arg 1
+	      (if (>= argc 2) (enqueue (select (next location)) q))) ; queue up arg 2
+	    (while (not (queue-empty-p q)) *root* ; start finalizing by filling in terminals
+	      (eval `(setf ,(random-dequeue q) '(,(random-terminal)))))))
+    (t (condition)
+      (let* ((non-term (random-non-terminal))
+	     (argc (second non-term)))
+	(append (list (first non-term)) (generate-list argc (lambda () `(,(random-terminal)))))))))
+      
 (defun gp-creator (&optional (size-limit *size-limit*))
    "Picks a random number within size-limit, then uses ptc2 to create
 a tree of that size"
