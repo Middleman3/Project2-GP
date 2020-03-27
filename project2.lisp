@@ -71,15 +71,16 @@ Information on compiling code and doing compiler optimizations can be found in t
 (defparameter *float-mutation-probability* 0.1)   ;; I just made up this number
 (defparameter *float-mutation-variance* 0.01)     ;; I just made up this number
 
-(defparameter *size-limit* 20)
-(defparameter *restrict-size* '())
+;; Some GP constants
+(defparameter *size-limit* 30)
+(defparameter *trim* 8 "cuts the size of mutated trees to keep them from huddling at size-limit")
+(defparameter *restrict-size* t "set to nil for large trees and potential stack issues")
 (defparameter *mutation-size-limit* 10)
 
 (defparameter *num-vals* 20)
 (defparameter *vals* nil) ;; gets set in gp-setup
 
 (defparameter *x* nil) ;; to be set in gp-evaluator
-
 
 (defparameter *is-numeric* nil)
 
@@ -217,8 +218,8 @@ Information on compiling code and doing compiler optimizations can be found in t
 ;;; Useful Functions and Macros
 
 (defun display (debug-level description &rest args)
-  ;(print description)
-  (if (<= debug-level *debug-level*) (apply #'format t description args)))
+  (if (<= debug-level *debug-level*)
+      (apply #'format t description args)))
 
 (defun swap (elt1 elt2)
   "Swaps elt1 and elt2, using SETF.  Returns nil."
@@ -226,8 +227,8 @@ Information on compiling code and doing compiler optimizations can be found in t
   (let* ((temp (copy-tree elt1)))
        (setf elt1 elt2)
        (setf elt2 temp)
-       (print elt1)
-       (print elt2)
+       ;(print elt1)
+       ;(print elt2)
        ))
       
 
@@ -252,7 +253,7 @@ are permitted (FUNCTION is repeatedly called until a unique
 new slot is created).  EQUALP is the test used for duplicates."
   (let (bag)
     (while (< (length bag) num) bag
-      (print bag)
+      ;(print bag)
       ;(break)
       (let ((candidate (funcall function)))
 	(unless (and no-duplicates
@@ -470,6 +471,8 @@ its fitness."
   (if dynamic (setf *dynamic* dynamic))
   (if record (setf *record* record)))
 
+(defparameter *num-nodes-memo-table* (make-hash-table :test #'equal))
+
 (defun evolve (generations pop-size &key setup creator selector modifier evaluator printer mutate-prob)
   "Evolves for some number of GENERATIONS, creating a population of size
 POP-SIZE, using various functions"
@@ -513,20 +516,22 @@ POP-SIZE, using various functions"
       (if *dynamic* (setf mutate-prob (if (> 1 mutate-prob)
 				       (+ mutate-prob (* *alpha* (if (< deltaFitness 1) (- 1 deltaFitness) 0)))
 				       1)))
-      
+
       ; get some statistics // c-5 = list of quantity of values >5 per individual                 
       (if *is-numeric*
 	  (let* ((c-5 (mapcar #'list-length (mapcar (lambda (ind) (remove-if (lambda (val) (> 5 val))
 									     ind))
 						    population))))	     
 
-					; rank individuals            
+
+	    #| ; rank individuals            
 	    (if *debug*
 		(progn (format t "~%Generation ~D: ~%Delta fitness = ~F~%Mutation Rate = ~F~%Count of 5+:~%0=~D  1=~D  2=~D  3=~D  4=~D  5=~D  6=~D  7=~D~%"
 			       gen deltaFitness mutate-prob (count 0 c-5) (count 1 c-5) (count 2 c-5) (count 3 c-5) (count 4 c-5) (count 5 c-5)
 			       (count 6 c-5) (count 7 c-5))
 		       (funcall printer population fitnesses)))))
-      
+	    |#
+	    ))
       ; #| SELECTION 1 
       ; choose half the population TWEAK ME!!!!!!!!!!
       (setf chosen (funcall selector (/ pop-size 2) population fitnesses))
@@ -584,10 +589,6 @@ Error generated if the queue is empty."
     (swap (elt queue index) (elt queue (1- (length queue))))
     (vector-pop queue)))
 
-(defun range (size)
-  (let ((count -1))
-    (mapcar (lambda (el) (incf count))
-	    (make-sequence 'list size))))
 
 (defun build-node (non-terminal)
   "Given a non-terminal node of form (func argc), returns a quote resembling the invocation of func with argc fresh symbols"
@@ -609,9 +610,11 @@ Error generated if the queue is empty."
 ;;; child, not the child itself.
 
 (defun next (node)
+  "Creates an accessor for the 'next' child. Meant to be called within a next or a select."
   `(cdr ,node))
 
 (defun select (node)
+  "Creates an accessor for the current child of node, beginning with node's first child. insert a next for the next child"
   `(car (cdr ,node)))
 
 #|
@@ -663,26 +666,31 @@ plus the number of unfilled slots in the horizon, is >= size.
 Then fills the remaining slots in the horizon with terminals.
 Terminals like X should be added to the tree
 in function form (X) rather than just X."
-  (if (equalp size 1) `(,(random-terminal))
-      (let* ((q (make-queue))
-	     (non-term (random-non-terminal))
-	     (argc (second non-term))	    
-	     (count 1)
-	     location)
-	(setf *root* (build-node non-term))
-	(if (>= argc 1) (enqueue (select '*root*) q)) ; queue up arg 1
-	(if (>= argc 2) (enqueue (select (next '*root*)) q)) ; queue up arg 2
-	(while (<= (+ count (length q)) size) '() ; until we reach the desired size
-	  (incf count)	  
-	  (setf location (random-dequeue q)
-		non-term (random-non-terminal))
-	  (setf argc (second non-term))
-	  (eval `(setf ,location ',(build-node non-term))) ; fill in new non-terminal
-	  (if (>= argc 1) (enqueue (select location) q)) ; queue up arg 1
-	  (if (>= argc 2) (enqueue (select (next location)) q))) ; queue up arg 2
-	(while (not (queue-empty-p q)) *root* ; start finalizing by filling in terminals
-	  (eval `(setf ,(random-dequeue q) '(,(random-terminal))))))))
-
+  (handler-case 
+      (if (equalp size 1) `(,(random-terminal)) ; return (x)
+	  (let* ((q (make-queue))
+		 (non-term (random-non-terminal))
+		 (argc (second non-term)) 
+		 (count 1)
+		 location)
+	    (setf *root* (build-node non-term))
+	    (if (>= argc 1) (enqueue (select '*root*) q)) ; queue up arg 1
+	    (if (>= argc 2) (enqueue (select (next '*root*)) q)) ; queue up arg 2
+	    (while (<= (+ count (length q)) size) '() ; until we reach the desired size
+	      (incf count)	  
+	      (setf location (random-dequeue q)
+		    non-term (random-non-terminal))
+	      (setf argc (second non-term))
+	      (eval `(setf ,location ',(build-node non-term))) ; fill in new non-terminal
+	      (if (>= argc 1) (enqueue (select location) q)) ; queue up arg 1
+	      (if (>= argc 2) (enqueue (select (next location)) q))) ; queue up arg 2
+	    (while (not (queue-empty-p q)) *root* ; start finalizing by filling in terminals
+	      (eval `(setf ,(random-dequeue q) '(,(random-terminal)))))))
+    (t (condition)
+      (let* ((non-term (random-non-terminal))
+	     (argc (second non-term)))
+	(append (list (first non-term)) (generate-list argc (lambda () `(,(random-terminal)))))))))
+      
 (defun gp-creator (&optional (size-limit *size-limit*))
    "Picks a random number within size-limit, then uses ptc2 to create
 a tree of that size"
@@ -697,28 +705,29 @@ a tree of that size"
     (lambda (end)
       (equalp (incf steps) end))))
 
-(defparameter *num-nodes-memo-table* (make-hash-table :test #'equal))
+(defun num-nodes (root)
+  "Returns the number of nodes in tree, including the root."
+  (let ((q (make-queue))
+	(safety (make-counter)) ; ptc2 might inch above size-limit, or we may run into self-referencing trees
+	(count 0))
+    (enqueue root q)
+    (while (not (or (queue-empty-p q) (funcall safety *size-limit*))) count ; break for empty queue or *size-limit* iterations
+      (dolist (subtree (random-dequeue q))
+	(if (listp subtree)
+	    (enqueue subtree q) 
+	    (incf count))))))
 
-;(let ((query (multiple-value-list (gethash tree *num-nodes-memo-table*))))
-;    (if (and query (second query)) (first query)
-;	(setf (gethash tree *num-nodes-memo-table*)
-
-(defun flatten (obj)
-  ; jonny code - just used this function to prove to myself that this was not the only issue
-  ; we need to rewrite this because this was taken from online because it does not use stack
-  (do* ((result (list obj))
-        (node result))
-       ((null node) (delete nil result))
-    (cond ((consp (car node))
-           (when (cdar node) (push (cdar node) (cdr node)))
-           (setf (car node) (caar node)))
-          (t (setf node (cdr node))))))
-
-
+#| RECURSIVE WAS CAUSING ERRORS, we tried a queue instead
 (defun num-nodes (tree)
-  "Returns the number of nodes in tree, including the root. Memoized "
-  (length (flatten tree)))
+  "Returns the number of nodes in tree, including the root. Memoized."
+  (let ((query (multiple-value-list (gethash tree *num-nodes-memo-table*)))) ; check table 
+    (if (and query (second query)) (first query) ; return value if found in table
+	(setf (gethash tree *num-nodes-memo-table*) ; otherwise, calculate, set, and return
+	      (apply #'+ (length (remove-if #'listp tree)) ; count leaf-nodes 
+		     (mapcar #'num-nodes (remove-if-not #'listp tree))))))) ; recurse over non-leaf-nodes
+|#
 
+;;;;;;;;;; NOT USED, SEE SUBTREE 
 (defun nth-subtree-parent (tree n)
     "Given a tree, finds the nth node by depth-first search though
 the tree, not including the root node of the tree (0-indexed). If the
@@ -765,29 +774,32 @@ If n is bigger than the number of nodes in the tree
   "generates an s-expression of recursively cdring name n times"
   (if (> n 0) (next (next-times (1- n) name)) `,name))
 
-(defvar *ind* nil)
+(defvar *ind* nil "Needed for subtree-mutation's eval calls")
 
 (defun subtree (root n &optional (name 'root))
   "Same as nth-subtree-node, but returns an s-expression from the root instead of the parent"
-  (if (= (num-nodes root) 1) name 
-      (let ((counter (make-counter :zero-based t))
-	    (excess (- n (- (num-nodes root) 1))))
-	(if (>= excess 0) (return-from subtree excess))
-	(labels ((recurse (node accessor)
-		   (let ((children (rest node)))
-		     (dotimes (i (length children))
-		       (let ((subtree (elt children i))
-			     (child-accessor `(car ,(next-times (1+ i) accessor))))
-			 (if (funcall counter n) (return-from subtree child-accessor)
-			     (if (listp subtree) (recurse subtree child-accessor))))))))
-	  (recurse root name)))))
+  (if (= (num-nodes root) 1) name ; there are no subtrees, so the proper accessor is the symbol name
+      (let ((counter (make-counter :zero-based t)) ; count the visited nodes in a closure
+	    (excess (- n (- (num-nodes root) 1)))) ; we kept the behavior for n > size of root
+	(if (>= excess 0) (return-from subtree excess)) 
+	(labels ((recurse (node accessor) ; define recursive function
+		   (let ((children (rest node))) 
+		     (dotimes (i (length children)) 
+		       (let ((subtree (elt children i)) ; next line creates accessor for current child to be first arg in setf
+			     (child-accessor `(car ,(next-times (1+ i) accessor)))) ; e.g. (car (cdr1 (cdr2 ... (cdri+1 name)...)
+			 (if (funcall counter n) (return-from subtree child-accessor) ; we've visited n nodes, return accessor
+			     (if (listp subtree) (recurse subtree child-accessor)))))))) ; recurse over non-leaf nodes
+	  (recurse root name))))) ; start recursion
 
 (defparameter *mutation-size-limit* 10)
 
 (defun random-subtree (ind name)
-  "Returns a random strict subtree (cannot be root) of the given individual"
+  "Returns a random strict subtree accessor [e.g. (car cdr name))] of ind. Requires symbol name to create the accessor."
   (let ((size (num-nodes ind)))
-    (if (= 1 size) name (subtree ind (random (1- (num-nodes ind))) name))))
+    (if (= 1 size) name ; there are no subtrees, so the proper accessor is the symbol name
+	(subtree ind (random (1- (num-nodes ind))) name)))) ; accessor for random non-root node with given name
+
+#| DEPRECATED for use when we wanted to restrict depth, but now we only want to restrict size. 
 
 (defun max-depth (root)
   "given a tree, calculates the maximum depth of the tree where (max-depth (a))=0"
@@ -804,19 +816,29 @@ If n is bigger than the number of nodes in the tree
  		     (rest subtree))))
     (recurse root 0)))
 
+|#
+
 (defvar *ind* nil)
 
-(defun subtree-mutation (ind &key (restrict-size *restrict-size*) (max-size *size-limit*) (mutate-size-limit *mutation-size-limit*))
+(defun subtree-mutation (ind &key (restrict-size *restrict-size*) (max-size *size-limit*)
+			       (mutate-size-limit *mutation-size-limit*) (trim *trim*))
   "Randomly selects a subtree of ind, determines its maximum depth,
 and replaces it with a new tree, perhaps restricting its size"
-  (setf *ind* ind)
-  (if (not restrict-size)
-      (eval (print `(setf ,(random-subtree *ind* '*ind*) ',(gp-creator mutate-size-limit))))
-      (let* ((full-height (max-depth ind))
-	     (n (random (num-nodes ind)))
-	     (new-subtree-depth (- max-size (depth ind (nth-subtree-parent ind n)))))
-	(eval (print `(setf ,(subtree *ind* n '*ind*) ',(ptc2 new-subtree-depth))))))
-  ind)
+  (setf *ind* ind) ; use global, so eval can see it
+  (handler-case
+      (progn
+	(if (not restrict-size) 
+	    (eval `(setf ,(random-subtree *ind* '*ind*) ',(gp-creator mutate-size-limit))) ; construct setf expression, and evaluate
+	    (let* ((size (num-nodes ind))
+		   (n (random (1- size))) ; randomly choose subtree to mutate 
+		   (suppress (< (- max-size size) 3)) ; ind is too close to the size-limit, lets suppress the new node
+		   (old-subtree-size (num-nodes (eval (subtree *ind* n '*ind*)))) ; count nodes in nth subtree
+		   (new-subtree-max  (if suppress old-subtree-size (max old-subtree-size (- max-size size trim))))) ; cap new node size
+	      ;(display 1 "~%sbtr-mut: height=~D n=~D old-size=~D max=~D new-max=~D suppress=~A" size n old-subtree-size max-size new-subtree-max suppress) ; debug
+	      (eval `(setf ,(subtree *ind* n '*ind*) ',(gp-creator new-subtree-max))))) ; construct setf expression, and evaluate
+	ind) ; return altered ind
+    (t (stuff)
+      (return-from subtree-mutation (gp-creator *size-limit*))))) ; if it errors, mutate it all the way
 
 (defvar *ind1* nil)
 (defvar *ind2* nil)
@@ -861,19 +883,25 @@ ind1 and ind2 are each mutated using subtree mutation, where
 the size of the newly-generated subtrees is picked at random
 from 1 to 10 inclusive.  Doesn't damage ind1 or ind2.  Returns
 the two modified versions as a list."
-  ; jonny code
-  (setf *ind1* ind1)
-  (setf *ind2* ind2)
-  (if (random?)
-      (let ((ind1-accessor (eval (random-subtree *ind1* '*ind1*)))
-	    (ind2-accessor (eval (random-subtree *ind2* '*ind2*))))
-	(setf *ind1* (remove-from-tree ind1-accessor *ind1*))
-	(setf *ind2* (remove-from-tree ind2-accessor *ind2*))
-	(setf *ind1* (cons *ind1* ind2-accessor))
-	(setf *ind2* (cons *ind2* ind1-accessor))
-	))
-  (list *ind1* *ind2*)
-)
+  (handler-case ; catch stack overflow caused by self-referencing tree bug
+      (progn
+	(setf *ind1* ind1) ; use globals, so eval can see them
+	(setf *ind2* ind2)
+	(if (random?)
+	    (let ((ind1-accessor (random-subtree *ind1* '*ind1*)) ; accessor = (car (cdr .... *ind1*)))...)
+		  (ind2-accessor (random-subtree *ind2* '*ind2*))) ; accessor = (car (cdr .... *ind2*)))...)
+	      ;(display 3 "~%gp-mod: *ind*=~A" *ind*) ; debugs
+	      (eval (print `(setf *swap-tmp* ',ind1-accessor))) ; construct setf expression and eval it (swap pt 1)
+	      ;(display 3 "~%gp-mod: *swap-tmp*=~A" *swap-tmp*) ; debugs
+	      (eval `(setf ,ind1-accessor ,ind2-accessor)) ; construct setf expression and eval it (swap pt 2)
+	      (eval `(setf ,ind2-accessor ,*swap-tmp*)) ; construct setf expression and eval it (swap pt 3)
+	      (list *ind1* *ind2*)) ; return crossed-over individuals
+	    (list (subtree-mutation *ind1*) (subtree-mutation *ind2*)))) ; mutate them individually without crossover
+    (t (condition)
+      (return-from gp-modifier ; patch for self-referencing tree issue, just create two random ones of the same size
+	(list (ptc2 (num-nodes ind1))
+	      (ptc2 (num-nodes ind2))))))) 
+
 ;;; SYMBOLIC REGRESSION
 ;;; This problem domain is similar, more or less, to the GP example in
 ;;; the lecture notes.  Your goal is to make a symbolic expression which
@@ -908,7 +936,6 @@ the two modified versions as a list."
 
   (setq *nonterminal-set* '((+ 2) (- 2) (* 2) (% 2) (sin 1) (cos 1) (exp 1)))
   (setq *terminal-set* '(x))
-
   (setq *vals* nil)
   (dotimes (v *num-vals*)
     (push (1- (random 2.0)) *vals*)))
