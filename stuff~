@@ -1,0 +1,17 @@
+;; This buffer is for text that is not saved, and for Lisp evaluation.
+;; To create a file, visit it with C-x C-f and enter text in its buffer.
+
+best so far (- (EXP (X))
+               (+ (% (+ (X) (- (X) (X))) (COS (X)))
+                  (- (+ (X) (EXP (* (EXP (X)) (- (* (X) (X)) (SIN (X))))))
+                     (X))))
+
+
+glitch
+(*
+ (+ (SIN (COS (X)))
+    (*
+     (- (+ (* (X) (X)) (COS (% (* (- (X) (X)) (EXP (X))) (X))))
+	(X))
+     (SIN (X))))
+ (COS (X)))

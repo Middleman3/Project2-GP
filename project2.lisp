@@ -54,7 +54,7 @@ compile your file first and then load that.
 Information on compiling code and doing compiler optimizations can be found in the
 "Speed" chapter of Graham.
 |#
-(defparameter *debug-level* 5)
+(defparameter *debug-level* 2)
 (defparameter *boolean-crossover-probability* 0.2)
 (defparameter *boolean-mutation-probability* 0.01)
 (defparameter *boolean-vector-length* 100)
@@ -72,8 +72,8 @@ Information on compiling code and doing compiler optimizations can be found in t
 (defparameter *float-mutation-variance* 0.01)     ;; I just made up this number
 
 ;; Some GP constants
-(defparameter *size-limit* 30)
-(defparameter *trim* 8 "cuts the size of mutated trees to keep them from huddling at size-limit")
+(defparameter *size-limit* 12)
+(defparameter *trim* 10 "cuts the size of mutated trees to keep them from huddling at size-limit")
 (defparameter *restrict-size* t "set to nil for large trees and potential stack issues")
 (defparameter *mutation-size-limit* 10)
 
@@ -221,15 +221,13 @@ Information on compiling code and doing compiler optimizations can be found in t
   (if (<= debug-level *debug-level*)
       (apply #'format t description args)))
 
-(defun swap (elt1 elt2)
+(defmacro swap (elt1 elt2)
   "Swaps elt1 and elt2, using SETF.  Returns nil."
-  ; Jonny code
-  (let* ((temp (copy-tree elt1)))
-       (setf elt1 elt2)
-       (setf elt2 temp)
-       ;(print elt1)
-       ;(print elt2)
-       ))
+  (let ((temp (gensym)))
+    `(let ((,temp ,elt1))
+       (setf ,elt1 ,elt2)
+       (setf ,elt2 ,temp)
+       nil)))
       
 
 (defmacro while (test return-value &body body)
@@ -473,6 +471,18 @@ its fitness."
 
 (defparameter *num-nodes-memo-table* (make-hash-table :test #'equal))
 
+#| Unnecessary
+(defun index-max (nums)
+  "Given a list of positive numbers, returns the index of the highest number"
+  (let ((bestIndex 0)
+	(bestVal 0))
+    (dotimes (i (length nums) bestIndex)      
+      (if (> (elt nums i) bestVal)
+	  (progn
+	    (setf bestVal (elt nums i))
+	    (setf bestIndex i))))))
+|#
+
 (defun evolve (generations pop-size &key setup creator selector modifier evaluator printer mutate-prob)
   "Evolves for some number of GENERATIONS, creating a population of size
 POP-SIZE, using various functions"
@@ -504,36 +514,44 @@ POP-SIZE, using various functions"
   ;;; the following functions (among others)
   ;;;
   ;;; FUNCALL FORMAT MAPCAR LAMBDA APPLY
-  (setf *num-nodes-memo-table* (make-hash-table :test #'equal))
+  ;(setf *num-nodes-memo-table* (make-hash-table :test #'equal)) ; memoization table, deprecated
   (funcall setup)
-  (let* ((population (generate-list pop-size creator t))
-	 (fitnesses (mapcar evaluator population))
-	  chosen offspring bestIndex (maxFitness 0) (deltaFitness 0) (i 0)) ;<for selection 1>
+  (let* ((population (generate-list pop-size creator t)) ; create population
+	 (fitnesses (mapcar evaluator population)) ; generate initial fitnesses
+	 chosen offspring bestIndex (maxFitness 0) (deltaFitness 0) (i 0)
+	 best bestFitness)
+    (setf bestFitness (apply #'max (first fitnesses) fitnesses)) ; assign best fitness
+    (setf bestIndex (position bestFitness fitnesses)) ; assign initial best fitness
+    (setf best (elt population bestIndex)) ; record best individual
+    (display 0 "!!!!!!!!!!!!!!!!!!!!!!!!!! Initial Setup !!!!!!!!!!!!!!!!!!!!!
+Fitnesses of Individuals:~%~A" (mapcar #'list fitnesses population))
     (dotimes (gen generations)
+      (display 0 "~%~%#################### Generation ~D #####################~%~%" (1+ gen))
       ; Calculate change in best fitness
       (setf deltaFitness (abs (- maxFitness (setf maxFitness (apply #'max 0 fitnesses)))))      
       ;;; modify mutation rate
-      (if *dynamic* (setf mutate-prob (if (> 1 mutate-prob)
-				       (+ mutate-prob (* *alpha* (if (< deltaFitness 1) (- 1 deltaFitness) 0)))
-				       1)))
-
+      (if *dynamic*
+	  (setf mutate-prob
+		(if (> 1 mutate-prob)
+		    (+ mutate-prob (* *alpha* (if (< deltaFitness 1) (- 1 deltaFitness) 0))) 1)))
+      
       ; get some statistics // c-5 = list of quantity of values >5 per individual                 
       (if *is-numeric*
-	  (let* ((c-5 (mapcar #'list-length (mapcar (lambda (ind) (remove-if (lambda (val) (> 5 val))
-									     ind))
-						    population))))	     
+	  (let* ((c-5 (mapcar #'list-length
+			      (mapcar (lambda (ind)
+					(remove-if (lambda (val) (> 5 val))
+						   ind))
+				      population))))	     
 
-
-	    #| ; rank individuals            
+	    ; rank individuals
 	    (if *debug*
 		(progn (format t "~%Generation ~D: ~%Delta fitness = ~F~%Mutation Rate = ~F~%Count of 5+:~%0=~D  1=~D  2=~D  3=~D  4=~D  5=~D  6=~D  7=~D~%"
 			       gen deltaFitness mutate-prob (count 0 c-5) (count 1 c-5) (count 2 c-5) (count 3 c-5) (count 4 c-5) (count 5 c-5)
 			       (count 6 c-5) (count 7 c-5))
 		       (funcall printer population fitnesses)))))
-	    |#
-	    ))
-      ; #| SELECTION 1 
-      ; choose half the population TWEAK ME!!!!!!!!!!
+
+	    ; choose half the population
+
       (setf chosen (funcall selector (/ pop-size 2) population fitnesses))
       ; build up an offspring set to be the new population
       (while (< (list-length offspring) pop-size) nil
@@ -544,15 +562,19 @@ POP-SIZE, using various functions"
       ; evolve
       (setf population offspring)
       (setf fitnesses (mapcar evaluator population))
-      (setf offspring nil))
+      (setf offspring nil)
+					; Possibly update with current best
+      (if (> (apply #'max (first fitnesses) fitnesses) bestFitness)
+	  (progn
+	    (setf bestFitness (apply #'max (first fitnesses) fitnesses)) ; assign best fitness
+	    (setf bestIndex (position bestFitness fitnesses)) ; assign initial best fitness
+	    (setf best (elt population bestIndex))))) ; record best individual
     
     ; Final Statistics
-    (setf bestIndex (position (apply #'max (first fitnesses) fitnesses) fitnesses))
-    (format t "~%Best Fitness: ~F ~%Best Individual of Evolution: ~A"
-	   (elt fitnesses bestIndex) (elt population bestIndex));  (setf *record* (elt fitnesses bestIndex)) (elt population bestIndex))
     
-    ; return statement
-    population))
+    (format t "~%Best Fitness: ~F ~%Best Individual of Evolution: ~A" bestFitness bestIndex)
+    (funcall evaluator best)
+    best)) ; return best 
 
 ;(evolve 50 100
 ; 	:setup #'float-vector-sum-setup
@@ -711,7 +733,8 @@ a tree of that size"
 	(safety (make-counter)) ; ptc2 might inch above size-limit, or we may run into self-referencing trees
 	(count 0))
     (enqueue root q)
-    (while (not (or (queue-empty-p q) (funcall safety *size-limit*))) count ; break for empty queue or *size-limit* iterations
+    (while (not (queue-empty-p q)) count ; break for empty queue or *size-limit* iterations
+      (if (funcall safety *size-limit*) (return-from num-nodes *size-limit*))
       (dolist (subtree (random-dequeue q))
 	(if (listp subtree)
 	    (enqueue subtree q) 
@@ -834,7 +857,8 @@ and replaces it with a new tree, perhaps restricting its size"
 		   (suppress (< (- max-size size) 3)) ; ind is too close to the size-limit, lets suppress the new node
 		   (old-subtree-size (num-nodes (eval (subtree *ind* n '*ind*)))) ; count nodes in nth subtree
 		   (new-subtree-max  (if suppress old-subtree-size (max old-subtree-size (- max-size size trim))))) ; cap new node size
-	      ;(display 1 "~%sbtr-mut: height=~D n=~D old-size=~D max=~D new-max=~D suppress=~A" size n old-subtree-size max-size new-subtree-max suppress) ; debug
+	      (display 1 "~%sbtr-mut: height=~D n=~D old-size=~D max=~D new-max=~D suppress=~A~%"
+		       size n old-subtree-size max-size new-subtree-max suppress) ; debug
 	      (eval `(setf ,(subtree *ind* n '*ind*) ',(gp-creator new-subtree-max))))) ; construct setf expression, and evaluate
 	ind) ; return altered ind
     (t (stuff)
@@ -886,13 +910,12 @@ the two modified versions as a list."
   (handler-case ; catch stack overflow caused by self-referencing tree bug
       (progn
 	(setf *ind1* ind1) ; use globals, so eval can see them
-	(setf *ind2* ind2)
+	(setf *ind2* ind2) 
+	(if (equal ind1 ind2) (return-from gp-modifier (list ind1 (ptc2 (num-nodes ind1))))) ; no mutation with one's self
 	(if (random?)
 	    (let ((ind1-accessor (random-subtree *ind1* '*ind1*)) ; accessor = (car (cdr .... *ind1*)))...)
-		  (ind2-accessor (random-subtree *ind2* '*ind2*))) ; accessor = (car (cdr .... *ind2*)))...)
-	      ;(display 3 "~%gp-mod: *ind*=~A" *ind*) ; debugs
-	      (eval (print `(setf *swap-tmp* ',ind1-accessor))) ; construct setf expression and eval it (swap pt 1)
-	      ;(display 3 "~%gp-mod: *swap-tmp*=~A" *swap-tmp*) ; debugs
+		  (ind2-accessor (random-subtree *ind2* '*ind2*))) ; accessor = (car (cdr .... *ind2*)))...)	      
+	      (eval `(setf *swap-tmp* ',ind1-accessor)) ; construct setf expression and eval it (swap pt 1)	     
 	      (eval `(setf ,ind1-accessor ,ind2-accessor)) ; construct setf expression and eval it (swap pt 2)
 	      (eval `(setf ,ind2-accessor ,*swap-tmp*)) ; construct setf expression and eval it (swap pt 3)
 	      (list *ind1* *ind2*)) ; return crossed-over individuals
@@ -962,14 +985,20 @@ evaluated may overflow or underflow, or produce NaN.  Handle all
 such math errors by
 returning most-positive-fixnum as the output of that expression."  
   (handler-case
-      (let  ((loss 0))
+      (let  ((loss 0) expected actual diff fitness)
+	(if (not (= *size-limit* (num-nodes ind))) (display 2 "~%~%Individual: ~A" ind)) ; won't print glitchy individuals
 	(dolist (val *vals*)
 	  (setf *x* val)
-	  (incf loss (abs (- (eval ind) (poly-to-learn *x*)))))
-	;;(display "symb-regr-eval sum-error=~D" loss :debug-level 2) 
-	(/ 1 (1+ loss)))
-    (error (condition)
-      (format t "~%Warning, ~a" condition) most-positive-fixnum)))
+	  (setf actual (eval ind))
+	  (setf expected (poly-to-learn *x*))
+	  (setf diff (abs (- expected actual )))
+	  (display 3 "~%symb-regr-eval for x ~,3f actual ~,3f - expected ~,3F = diff ~,3F into loss ~,3F" val actual expected diff loss)
+	  (incf loss diff))
+	(setf fitness (/ 1 (1+ loss)))
+	(display 2 "~%symb-regr-eval expected sum-error=~D; fitness=~D~%" loss fitness)
+	fitness)    
+    (t (condition)
+      (format t "~%Warning, ~a" condition) (/ 1 most-positive-fixnum))))
 
 ;;; Example run
 #|
@@ -1191,10 +1220,15 @@ where the ant had gone."
   "Evaluates an individual by putting it in a fresh map and letting it run
 for *num-moves* moves.  The fitness is the number of pellets eaten -- thus
 more pellets, higher (better) fitness."
-  (setf *map-str-copy* (copy-seq *map-strs*))
-  (setf *eaten-pellets* 0)
-  (dotimes (number *num-moves* *eaten-pellets*)
-    (eval ind)))
+  (handler-case
+      (progn
+	(setf *map-str-copy* (copy-seq *map-strs*))
+	(setf *eaten-pellets* 0)
+	(dotimes (number *num-moves* *eaten-pellets*)
+	  (eval ind)))
+    (t (condition) 0)))
+  
+    
 
 ;; you might choose to write your own printer, which prints out the best
 ;; individual's map.  But it's not required.
