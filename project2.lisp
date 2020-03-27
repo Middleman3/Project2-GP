@@ -170,40 +170,45 @@ Information on compiling code and doing compiler optimizations can be found in t
 			 (mapcar (lambda (x) (* x 100)) ind)))))
 
 (defun max-ones (vector)
+  "counts the number of ones in a vector"
   (let ((count 0))
     (dolist (element vector)
       (if element
-	  (setf count (+ count 1))))
+	  (incf count)))
     (return-from max-ones count)))
 
 (defun trap (vector)
+  "counts the number of zeros in the function, unless there are no zeros in which case
+  the fitness of the vector goes to the length of the vector + 1"
   (let ((count 0))
     (dolist (element vector)
       (if (not element)
-	  (setf count (+ count 1))))
+	  (incf count)))
 
     (if (= count 0)
 	(return-from trap (+ (length vector) 1))
 	(return-from trap count))))
 
 (defun leading-ones (vector)
+  "returns the position of the first zero found in the vector"
   (let ((count 0) (run T))
     (dolist (element vector)
       (if run
 	  (if element
-	      (setf count (+ count 1))
+	      (incf count)
 	      (setf run nil))))
     (return-from leading-ones count)))
 
 (defun leading-ones-blocks (vector b)
+  "given a value B, count the number of strings of ones, each b long, until we see a zero"
   (let ((count 0) (ones-count 0))
     (dolist (element vector)
       (if element
 	  (progn
-	    (setf ones-count (+ ones-count 1))
+	    (incf ones-count)
 	    (if (= ones-count b)
 		(progn
-		  (setf count (+ count 1))
+		  (incf count)
 		  (setf ones-count 0))))))
     (return-from leading-ones-blocks count)))
 
@@ -223,6 +228,7 @@ Information on compiling code and doing compiler optimizations can be found in t
        (setf ,elt1 ,elt2)
        (setf ,elt2 ,temp)
        nil)))
+      
 
 (defmacro while (test return-value &body body)
   "Repeatedly executes body as long as test returns true.
@@ -245,6 +251,8 @@ are permitted (FUNCTION is repeatedly called until a unique
 new slot is created).  EQUALP is the test used for duplicates."
   (let (bag)
     (while (< (length bag) num) bag
+      ;(print bag)
+      ;(break)
       (let ((candidate (funcall function)))
 	(unless (and no-duplicates
 		     (member candidate bag :test #'equalp))
@@ -402,9 +410,9 @@ and the floating-point ranges involved, etc.  I dunno."
   "Generates a random number under a gaussian distribution with the given mean and variance (using the Box-Muller-Marsaglia method)"
   (let (x y (w 0))
     (while (not (and (< 0 w) (< w 1))) '()
-           (setf x (- (random 2.0) 1.0))
-           (setf y (- (random 2.0) 1.0))
-           (setf w (+ (* x x) (* y y))))
+      (setf x (- (random 2.0) 1.0))
+      (setf y (- (random 2.0) 1.0))
+      (setf w (+ (* x x) (* y y))))
     (+ mean (* x (sqrt variance) (sqrt (* -2 (/ (log w) w)))))))
 
 (defun gaussian-convolution (ind)
@@ -418,7 +426,7 @@ and the floating-point ranges involved, etc.  I dunno."
       (if (random? *float-mutation-probability*)
 	  (progn
 	    (while out-of-bounds nil
-	      ;(format t "~%~%E=~F  N=~F~%~F < ~F < ~F~%~%" (elt ind i) n *float-min* (+ (elt ind i) n) *float-max*))
+					;(format t "~%~%E=~F  N=~F~%~F < ~F < ~F~%~%" (elt ind i) n *float-min* (+ (elt ind i) n) *float-max*))
 	      (setf n (gaussian-random mean *float-mutation-variance*))
 	      (if (and (> (+ (elt ind i) n) *float-min*) (< (+ (elt ind i) n) *float-max*))
 		  (setf out-of-bounds nil)))
@@ -535,14 +543,15 @@ Fitnesses of Individuals:~%~A" (mapcar #'list fitnesses population))
 						   ind))
 				      population))))	     
 
-     ; rank individuals            
+	    ; rank individuals
 	    (if *debug*
 		(progn (format t "~%Generation ~D: ~%Delta fitness = ~F~%Mutation Rate = ~F~%Count of 5+:~%0=~D  1=~D  2=~D  3=~D  4=~D  5=~D  6=~D  7=~D~%"
 			       gen deltaFitness mutate-prob (count 0 c-5) (count 1 c-5) (count 2 c-5) (count 3 c-5) (count 4 c-5) (count 5 c-5)
 			       (count 6 c-5) (count 7 c-5))
 		       (funcall printer population fitnesses)))))
-            
-      ; choose half the population
+
+	    ; choose half the population
+
       (setf chosen (funcall selector (/ pop-size 2) population fitnesses))
       ; build up an offspring set to be the new population
       (while (< (list-length offspring) pop-size) nil
@@ -860,6 +869,38 @@ and replaces it with a new tree, perhaps restricting its size"
 (defvar *ind2* nil)
 (defvar *swap-tmp* nil)
 
+(defun contains-list (lis)
+    (dolist (elem lis)
+      (if (listp elem)
+	  (return-from contains-list t)
+	  )
+      )
+    (return-from contains-list nil)
+    )
+
+
+(defun remove-from-tree (remove-elem tree) ;; CURRENTLY, IT MODIFIES THE LIST IN ADDITION TO REMOVING A SUBLIST - SHOULDN'T DO THAT
+  ; jonny code
+  (let ((new-tree nil))
+    (dolist (elem tree)
+      (if (and (not (equal remove-elem elem)) (not (listp elem))) ;; for every element not a list
+					; append element
+	  (setf new-tree (append new-tree (list elem)))
+	  )
+      (if (and (not (equal remove-elem elem)) (listp elem) (not (contains-list elem))) ;; for every element that is a list and does not contain a list
+					; cons element
+	  (setf new-tree (cons new-tree elem))
+	  )
+      (if (and (not (equal remove-elem elem)) (listp elem) (contains-list elem)) ;; for every element that is a list and contains a list
+	  (if (and (listp elem) (not (eq elem remove-elem)))
+	      (setf new-tree (cons new-tree (remove-from-tree remove-elem elem)))
+		)
+	  )
+      )
+    (return-from remove-from-tree new-tree)
+    )
+  )
+
 (defun gp-modifier (ind1 ind2)
   "Flips a coin.  If it's heads, then ind1 and ind2 are
 crossed over using subtree crossover.  If it's tails, then
@@ -1138,7 +1179,6 @@ where the ant had gone."
 
 (if (<= *current-move* *num-moves*)
     (progn
-      
     (setf *current-move* (+ *current-move* 1))
     (setf *eaten-pellets* (+ *eaten-pellets* 1))
     (if (= *current-ant-dir* 1)
@@ -1156,10 +1196,12 @@ where the ant had gone."
 	     (setf (elt (elt *map-strs-copy* *current-y-pos*) *current-x-pos*) -move))))))
 
 (defun left ()
+  "uses a modulo operation to rotate the ant direction to the left."
   (if (<= *current-move* *num-moves*)
       (setf *current-ant-dir* (mod (1- *current-ant-dir*) 4))))
 
 (defun right ()
+  "uses a modulo operation to rotate the anti direction to the right."
   (if (<= *current-move* *num-moves*)
       (setf *current-ant-dir* (mod (1+ *current-ant-dir*) 4))))
 
