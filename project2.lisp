@@ -563,17 +563,18 @@ Fitnesses of Individuals:~%~A" (mapcar #'list fitnesses population))
     
     ; Final Statistics
     
-    (format t "~%Best Fitness: ~F ~%Best Individual of Evolution: ~A" bestFitness bestIndex)
+    (format t "~%Best Fitness: ~F ~%Best Individual of Evolution: ~A" bestFitness best)
     (funcall evaluator best)
     best)) ; return best 
 
-;(evolve 50 100
-; 	:setup #'float-vector-sum-setup
-;	:creator #'float-vector-creator
-;	:selector #'tournament-selector
-;	:modifier #'float-vector-modifier
-;       :Evaluator
-
+#|
+(evolve 50 100
+ 	:setup #'float-vector-sum-setup
+	:creator #'float-vector-creator
+	:selector #'tournament-selector
+	:modifier #'float-vector-modifier
+:evaluator
+|#
 ;;;; Gp
 
 ;;; GP's tree individuals are considerably more complex to modify than
@@ -848,7 +849,7 @@ and replaces it with a new tree, perhaps restricting its size"
 		   (suppress (< (- max-size size) 3)) ; ind is too close to the size-limit, lets suppress the new node
 		   (old-subtree-size (num-nodes (eval (subtree *ind* n '*ind*)))) ; count nodes in nth subtree
 		   (new-subtree-max  (if suppress old-subtree-size (max old-subtree-size (- max-size size trim))))) ; cap new node size
-	      (display 1 "~%sbtr-mut: height=~D n=~D old-size=~D max=~D new-max=~D suppress=~A~%"
+	      (display 4 "~%sbtr-mut: height=~D n=~D old-size=~D max=~D new-max=~D suppress=~A~%"
 		       size n old-subtree-size max-size new-subtree-max suppress) ; debug
 	      (eval `(setf ,(subtree *ind* n '*ind*) ',(gp-creator new-subtree-max))))) ; construct setf expression, and evaluate
 	ind) ; return altered ind
